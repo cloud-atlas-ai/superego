@@ -2,6 +2,7 @@ use clap::{Parser, Subcommand};
 use std::path::Path;
 
 mod decision;
+mod state;
 mod tools;
 mod transcript;
 
@@ -106,16 +107,46 @@ fn main() {
             }
         }
         Commands::Check { tool_name } => {
-            let class = tools::classify(&tool_name);
-            let gated = tools::requires_gating(&tool_name);
-            println!("Tool: {} | Class: {:?} | Gated: {}", tool_name, class, gated);
+            let superego_dir = Path::new(".superego");
+            let state_mgr = state::StateManager::new(superego_dir);
 
-            if !gated {
-                // Read tools always pass
-                println!("ALLOW: read-only tool");
-            } else {
-                // TODO: Check phase from state, for now just report
-                println!("GATED: requires READY phase or override");
+            // Read tools always pass - no state check needed
+            if !tools::requires_gating(&tool_name) {
+                println!(r#"{{"decision": "allow", "reason": "read-only tool"}}"#);
+                return;
+            }
+
+            // Write tools - check state
+            match state_mgr.load() {
+                Ok(mut current_state) => {
+                    if current_state.allows_write() {
+                        // Check if this was an override (single-use)
+                        if current_state.pending_override.is_some() {
+                            current_state.consume_override();
+                            if let Err(e) = state_mgr.save(&current_state) {
+                                eprintln!("Warning: failed to clear override: {}", e);
+                            }
+                            println!(r#"{{"decision": "allow", "reason": "override consumed"}}"#);
+                        } else {
+                            println!(r#"{{"decision": "allow", "reason": "phase is ready"}}"#);
+                        }
+                    } else {
+                        // Block with helpful message
+                        let reason = format!(
+                            "Phase is {}. User confirmation needed before write actions.",
+                            current_state.phase
+                        );
+                        println!(r#"{{"decision": "block", "phase": "{}", "reason": "{}"}}"#,
+                            current_state.phase, reason);
+                        std::process::exit(1);
+                    }
+                }
+                Err(e) => {
+                    // AIDEV-NOTE: On state read error, fail open with warning
+                    // This prevents state corruption from blocking all work
+                    eprintln!("Warning: failed to read state: {}", e);
+                    println!(r#"{{"decision": "allow", "reason": "state read error - fail open"}}"#);
+                }
             }
         }
         Commands::Acknowledge => {
