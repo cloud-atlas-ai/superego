@@ -1,8 +1,0 @@
-timestamp: 2025-12-11T20:36:41.285404Z
-session_id: null
-type: phase_transition
-from_state: exploring
-to_state: ready
-context: null
-trigger: 'Multiple tasks in progress (higher-peak-pvi: Implement bd-based phase detection, higher-peak-9hi: Implement async evaluation via Stop hook). Consider focusing on one at a time.'
-approved_scope: Implement bd-based phase detection

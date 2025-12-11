@@ -1,3 +1,0 @@
-SEVERITY: Block
-
-No task in progress. Claim a task with `bd update <id> --status in_progress` before making changes.

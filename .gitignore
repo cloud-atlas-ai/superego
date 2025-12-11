@@ -1,1 +1,8 @@
 /target
+
+# Superego transient state (per-project, not shared)
+.superego/state.json
+.superego/feedback
+.superego/decisions/
+.superego/session/
+.superego/config.yaml
