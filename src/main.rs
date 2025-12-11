@@ -1,6 +1,7 @@
 use clap::{Parser, Subcommand};
 use std::path::Path;
 
+mod tools;
 mod transcript;
 
 #[derive(Parser)]
@@ -104,7 +105,17 @@ fn main() {
             }
         }
         Commands::Check { tool_name } => {
-            println!("sg check --tool-name {} - not yet implemented", tool_name);
+            let class = tools::classify(&tool_name);
+            let gated = tools::requires_gating(&tool_name);
+            println!("Tool: {} | Class: {:?} | Gated: {}", tool_name, class, gated);
+
+            if !gated {
+                // Read tools always pass
+                println!("ALLOW: read-only tool");
+            } else {
+                // TODO: Check phase from state, for now just report
+                println!("GATED: requires READY phase or override");
+            }
         }
         Commands::Acknowledge => {
             println!("sg acknowledge - not yet implemented");
