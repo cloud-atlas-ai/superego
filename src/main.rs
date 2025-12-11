@@ -2,6 +2,7 @@ use clap::{Parser, Subcommand};
 use std::path::Path;
 
 mod decision;
+mod init;
 mod state;
 mod tools;
 mod transcript;
@@ -17,7 +18,11 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// Initialize superego for a project
-    Init,
+    Init {
+        /// Force re-initialization even if .superego/ exists
+        #[arg(long)]
+        force: bool,
+    },
 
     /// Evaluate phase from user message (called by UserPromptSubmit hook)
     Evaluate {
@@ -77,8 +82,24 @@ fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Init => {
-            println!("sg init - not yet implemented");
+        Commands::Init { force } => {
+            match init::init(force) {
+                Ok(()) => {
+                    println!("Superego initialized in .superego/");
+                    println!("  - prompt.md: system prompt (customize as needed)");
+                    println!("  - state.json: current phase (exploring)");
+                    println!("  - decisions/: decision journal");
+                    println!("\nNext: configure hooks in .claude/settings.json");
+                }
+                Err(init::InitError::AlreadyExists) => {
+                    eprintln!(".superego/ already exists. Use --force to reinitialize.");
+                    std::process::exit(1);
+                }
+                Err(e) => {
+                    eprintln!("Error initializing: {}", e);
+                    std::process::exit(1);
+                }
+            }
         }
         Commands::Evaluate { transcript_path } => {
             let path = Path::new(&transcript_path);
