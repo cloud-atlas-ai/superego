@@ -1,6 +1,7 @@
 use clap::{Parser, Subcommand};
 use std::path::Path;
 
+mod claude;
 mod decision;
 mod init;
 mod state;
