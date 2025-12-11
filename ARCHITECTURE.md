@@ -83,7 +83,23 @@
 **Write tools** (gated by phase):
 - `Edit`, `Write`, `Bash`, `Task`, `NotebookEdit`
 
+**Design decisions:**
+- **Bash**: All Bash commands treated as write (even `git status`). Phase checks are instant (cached), so safe to over-gate.
+- **Task (subagents)**: Trust parent's phase. Subagents inherit the current phase, no separate gating.
+
 ## CLI Commands
+
+### sg init
+Initialize superego for a project.
+
+```bash
+sg init
+```
+
+- Creates `.superego/` directory structure
+- Writes default `prompt.md`
+- Creates empty `state.json` (phase: exploring)
+- Creates `decisions/` folder
 
 ### sg evaluate
 Called by `UserPromptSubmit` hook. Infers phase from conversation.
@@ -139,6 +155,39 @@ sg history --limit 10
 - Reads `.superego/decisions/*`
 - Returns chronological list
 
+### sg context-inject
+Called by `SessionStart` hook. Injects context into Claude.
+
+```bash
+sg context-inject
+```
+
+- Outputs behavioral contract (how Claude should handle blocks)
+- Includes summary of recent decisions from journal
+- Returns as `additionalContext` for Claude's session
+
+### sg reset
+Recovery from corrupted state.
+
+```bash
+sg reset
+```
+
+- Clears `state.json` (resets to EXPLORING)
+- Optionally clears `session/` (superego's Claude session)
+- Preserves `decisions/` journal (audit trail)
+
+### sg disable / sg enable
+Escape hatch to bypass superego.
+
+```bash
+sg disable   # Sets disabled flag
+sg enable    # Clears disabled flag
+```
+
+- When disabled, hooks skip all checks
+- Also respects `SUPEREGO_DISABLED=1` env var
+
 ## Directory Structure
 
 ```
@@ -159,9 +208,15 @@ sg history --limit 10
   "since": "2024-01-15T10:30:00Z",
   "approved_scope": null,
   "last_evaluated": "2024-01-15T10:35:00Z",
-  "pending_feedback": null
+  "pending_override": null,
+  "disabled": false
 }
 ```
+
+**Override flow:**
+1. `sg override "reason"` → sets `pending_override: {reason: "...", timestamp: "..."}`
+2. Next `sg check` for write tool → sees `pending_override` → allows action → clears `pending_override`
+3. Subsequent `sg check` calls → no override pending → normal phase gating resumes
 
 ### Decision Record
 
