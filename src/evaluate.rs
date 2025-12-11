@@ -1,14 +1,18 @@
-/// Phase evaluation for superego
+/// Evaluation for superego
 ///
-/// Evaluates conversation context and infers phase using Claude CLI.
+/// Two evaluation modes:
+/// - evaluate_bd: Fast check of bd task state (no LLM)
+/// - evaluate_llm: Rich feedback from LLM
 
 use std::fs;
 use std::path::Path;
 
-use crate::claude::{self, ClaudeOptions, SuperegoEvaluation};
-use crate::decision::{Decision, Journal, Phase};
-use crate::state::{State, StateManager};
-use crate::transcript::{self, TranscriptEntry};
+use crate::bd;
+use crate::claude::{self, ClaudeOptions};
+use crate::decision::{Decision, Journal};
+use crate::feedback::{Feedback, FeedbackQueue};
+use crate::state::StateManager;
+use crate::transcript;
 
 /// Error type for evaluation
 #[derive(Debug)]
@@ -16,8 +20,6 @@ pub enum EvaluateError {
     TranscriptError(transcript::TranscriptError),
     ClaudeError(claude::ClaudeError),
     IoError(std::io::Error),
-    StateError(crate::state::StateError),
-    JournalError(crate::decision::JournalError),
 }
 
 impl std::fmt::Display for EvaluateError {
@@ -26,8 +28,6 @@ impl std::fmt::Display for EvaluateError {
             EvaluateError::TranscriptError(e) => write!(f, "Transcript error: {}", e),
             EvaluateError::ClaudeError(e) => write!(f, "Claude error: {}", e),
             EvaluateError::IoError(e) => write!(f, "IO error: {}", e),
-            EvaluateError::StateError(e) => write!(f, "State error: {}", e),
-            EvaluateError::JournalError(e) => write!(f, "Journal error: {}", e),
         }
     }
 }
@@ -52,43 +52,31 @@ impl From<std::io::Error> for EvaluateError {
     }
 }
 
-impl From<crate::state::StateError> for EvaluateError {
-    fn from(e: crate::state::StateError) -> Self {
-        EvaluateError::StateError(e)
-    }
-}
-
-impl From<crate::decision::JournalError> for EvaluateError {
-    fn from(e: crate::decision::JournalError) -> Self {
-        EvaluateError::JournalError(e)
-    }
-}
-
-/// Result of phase evaluation
+/// Result of LLM-based evaluation
 #[derive(Debug)]
-pub struct EvaluationResult {
-    pub phase: Phase,
-    pub previous_phase: Phase,
-    pub approved_scope: Option<String>,
-    pub concerns: Vec<String>,
+pub struct LlmEvaluationResult {
+    /// The feedback text (or "No concerns." if none)
+    pub feedback: String,
+    /// Whether there were concerns
+    pub has_concerns: bool,
+    /// Cost of the LLM call
     pub cost_usd: f64,
-    pub changed: bool,
+    /// Session ID for continuation
+    pub session_id: String,
 }
 
-/// Run phase evaluation
-pub fn evaluate(
+/// Evaluate conversation using LLM with natural language feedback
+///
+/// AIDEV-NOTE: This calls Claude with the superego prompt and gets
+/// rich natural language feedback that Claude can reason about.
+/// No JSON parsing, no phase extraction - just feedback text.
+pub fn evaluate_llm(
     transcript_path: &Path,
     superego_dir: &Path,
     context_limit: usize,
-) -> Result<EvaluationResult, EvaluateError> {
+) -> Result<LlmEvaluationResult, EvaluateError> {
     // Load transcript
     let entries = transcript::read_transcript(transcript_path)?;
-    let main_session_id = transcript::extract_session_id(&entries);
-
-    // Load current state (or default to EXPLORING)
-    let state_mgr = StateManager::new(superego_dir);
-    let current_state = state_mgr.load().unwrap_or_default();
-    let previous_phase = current_state.phase;
 
     // Load system prompt
     let prompt_path = superego_dir.join("prompt.md");
@@ -101,116 +89,80 @@ pub fn evaluate(
     // Format conversation context
     let context = transcript::format_recent_context(&entries, context_limit);
 
-    // Build message for superego
+    // Get bd task context
+    let bd_context = match bd::evaluate() {
+        Ok(eval) => {
+            if let Some(task) = eval.current_task {
+                format!("CURRENT TASK: {} - {}\n\n", task.id, task.title)
+            } else if eval.read_only {
+                "CURRENT TASK: None (no task claimed)\n\n".to_string()
+            } else {
+                String::new()
+            }
+        }
+        Err(_) => String::new(), // bd not initialized, skip context
+    };
+
+    // Build message for superego - include bd context
     let message = format!(
-        "Evaluate the following conversation and determine the current phase.\n\n\
-        Current phase: {}\n\n\
-        --- CONVERSATION ---\n\
+        "Review the following Claude Code conversation and provide feedback.\n\n\
+        {}--- CONVERSATION ---\n\
         {}\n\
-        --- END CONVERSATION ---\n\n\
-        Respond with JSON only.",
-        previous_phase, context
+        --- END CONVERSATION ---",
+        bd_context,
+        context
     );
 
     // Load superego session ID if available
     let session_path = superego_dir.join("session").join("session_id");
     let superego_session_id = fs::read_to_string(&session_path).ok();
 
-    // Call Claude for evaluation
+    // Call Claude
     let options = ClaudeOptions {
         model: Some("sonnet".to_string()),
         session_id: superego_session_id.clone(),
-        timeout_secs: Some(30),
         no_session_persistence: false,
     };
 
     let response = claude::invoke(&system_prompt, &message, options)?;
 
-    // Save superego session ID for next time
+    // Save session ID for next time
     if response.session_id != superego_session_id.unwrap_or_default() {
         let session_dir = superego_dir.join("session");
         fs::create_dir_all(&session_dir)?;
         fs::write(session_path, &response.session_id)?;
     }
 
-    // Parse evaluation
-    let eval = claude::parse_evaluation(&response.result)?;
-
-    // Convert phase string to enum
-    let new_phase = match eval.phase.to_lowercase().as_str() {
-        "ready" => Phase::Ready,
-        "discussing" => Phase::Discussing,
-        _ => Phase::Exploring,
-    };
-
-    // Collect concerns
-    let concerns: Vec<String> = eval
-        .concerns
-        .unwrap_or_default()
-        .into_iter()
-        .map(|c| format!("{}: {}", c.concern_type, c.description))
-        .collect();
-
-    // Update state if phase changed
-    let changed = new_phase != previous_phase;
-    if changed {
-        let mut new_state = current_state.clone();
-        new_state.transition_to(new_phase, eval.approved_scope.clone());
-        state_mgr.save(&new_state)?;
-
-        // Record in decision journal
-        let journal = Journal::new(superego_dir);
-        let decision = Decision::phase_transition(
-            main_session_id,
-            previous_phase,
-            new_phase,
-            eval.reason.unwrap_or_else(|| "LLM evaluation".to_string()),
-            eval.approved_scope.clone(),
-        );
-        journal.write(&decision)?;
-    } else {
-        // Update last_evaluated timestamp
-        let mut new_state = current_state;
-        new_state.last_evaluated = Some(chrono::Utc::now());
-        state_mgr.save(&new_state)?;
+    // Update last_evaluated timestamp
+    let state_mgr = StateManager::new(superego_dir);
+    if let Err(e) = state_mgr.update(|s| s.mark_evaluated()) {
+        eprintln!("Warning: failed to update state: {}", e);
     }
 
-    Ok(EvaluationResult {
-        phase: new_phase,
-        previous_phase,
-        approved_scope: eval.approved_scope,
-        concerns,
-        cost_usd: response.total_cost_usd,
-        changed,
-    })
-}
+    // The result is natural language feedback
+    let feedback = response.result.trim().to_string();
+    let has_concerns = !feedback.eq_ignore_ascii_case("no concerns.")
+        && !feedback.eq_ignore_ascii_case("no concerns");
 
-/// Evaluate with fallback to EXPLORING on error
-pub fn evaluate_with_fallback(
-    transcript_path: &Path,
-    superego_dir: &Path,
-    context_limit: usize,
-) -> EvaluationResult {
-    match evaluate(transcript_path, superego_dir, context_limit) {
-        Ok(result) => result,
-        Err(e) => {
-            // AIDEV-NOTE: On error, fall back to EXPLORING (safe default)
-            eprintln!("Warning: evaluation failed, falling back to EXPLORING: {}", e);
-
-            let state_mgr = StateManager::new(superego_dir);
-            let current_phase = state_mgr
-                .load()
-                .map(|s| s.phase)
-                .unwrap_or(Phase::Exploring);
-
-            EvaluationResult {
-                phase: Phase::Exploring,
-                previous_phase: current_phase,
-                approved_scope: None,
-                concerns: vec![format!("Evaluation error: {}", e)],
-                cost_usd: 0.0,
-                changed: current_phase != Phase::Exploring,
-            }
+    // Write to feedback queue and decision journal if there are concerns
+    if has_concerns {
+        let queue = FeedbackQueue::new(superego_dir);
+        let fb = Feedback::warning(&feedback);
+        if let Err(e) = queue.write(&fb) {
+            eprintln!("Warning: failed to write feedback: {}", e);
+        }
+        // Record to decision journal for audit trail
+        let journal = Journal::new(superego_dir);
+        let decision = Decision::feedback_delivered(Some(response.session_id.clone()), feedback.clone());
+        if let Err(e) = journal.write(&decision) {
+            eprintln!("Warning: failed to write decision journal: {}", e);
         }
     }
+
+    Ok(LlmEvaluationResult {
+        feedback,
+        has_concerns,
+        cost_usd: response.total_cost_usd,
+        session_id: response.session_id,
+    })
 }

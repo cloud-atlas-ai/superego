@@ -5,7 +5,6 @@
 use std::fs;
 use std::path::Path;
 
-use crate::decision::Phase;
 use crate::state::{State, StateManager};
 
 /// Default superego system prompt (embedded at compile time)
@@ -66,11 +65,7 @@ pub fn init_at(base_dir: &Path, force: bool) -> Result<(), InitError> {
 
     // Create initial state
     let state_mgr = StateManager::new(&superego_dir);
-    let initial_state = State {
-        phase: Phase::Exploring,
-        ..State::default()
-    };
-    state_mgr.save(&initial_state)?;
+    state_mgr.save(&State::default())?;
 
     // Create empty config (placeholder for future settings)
     fs::write(

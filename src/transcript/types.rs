@@ -1,4 +1,3 @@
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 /// A single entry in the transcript JSONL file
@@ -92,24 +91,6 @@ impl TranscriptEntry {
         }
     }
 
-    /// Get the UUID if available
-    pub fn uuid(&self) -> Option<&str> {
-        match self {
-            TranscriptEntry::User { uuid, .. } => Some(uuid),
-            TranscriptEntry::Assistant { uuid, .. } => Some(uuid),
-            _ => None,
-        }
-    }
-
-    /// Get the timestamp if available
-    pub fn timestamp(&self) -> Option<&str> {
-        match self {
-            TranscriptEntry::User { timestamp, .. } => timestamp.as_deref(),
-            TranscriptEntry::Assistant { timestamp, .. } => timestamp.as_deref(),
-            _ => None,
-        }
-    }
-
     /// Check if this is a user message
     pub fn is_user(&self) -> bool {
         matches!(self, TranscriptEntry::User { .. })
@@ -167,8 +148,4 @@ impl TranscriptEntry {
         }
     }
 
-    /// Get the text content regardless of role
-    pub fn text_content(&self) -> Option<String> {
-        self.user_text().or_else(|| self.assistant_text())
-    }
 }

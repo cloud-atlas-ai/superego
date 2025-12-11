@@ -1,5 +1,4 @@
 pub mod reader;
-pub mod types;
+mod types;
 
 pub use reader::*;
-pub use types::*;

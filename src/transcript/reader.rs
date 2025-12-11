@@ -8,16 +8,12 @@ use crate::transcript::types::TranscriptEntry;
 #[derive(Debug)]
 pub enum TranscriptError {
     IoError(std::io::Error),
-    ParseError { line: usize, error: String },
 }
 
 impl std::fmt::Display for TranscriptError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             TranscriptError::IoError(e) => write!(f, "IO error: {}", e),
-            TranscriptError::ParseError { line, error } => {
-                write!(f, "Parse error at line {}: {}", line, error)
-            }
         }
     }
 }
@@ -71,33 +67,6 @@ pub fn get_recent_messages(entries: &[TranscriptEntry], limit: usize) -> Vec<&Tr
         .into_iter()
         .rev()
         .collect()
-}
-
-/// Extract session ID from transcript entries
-pub fn extract_session_id(entries: &[TranscriptEntry]) -> Option<String> {
-    entries
-        .iter()
-        .find_map(|e| e.session_id().map(|s| s.to_string()))
-}
-
-/// Extract only user messages
-pub fn get_user_messages(entries: &[TranscriptEntry]) -> Vec<&TranscriptEntry> {
-    entries.iter().filter(|e| e.is_user()).collect()
-}
-
-/// Extract only assistant messages
-pub fn get_assistant_messages(entries: &[TranscriptEntry]) -> Vec<&TranscriptEntry> {
-    entries.iter().filter(|e| e.is_assistant()).collect()
-}
-
-/// Get the most recent user message
-pub fn get_last_user_message(entries: &[TranscriptEntry]) -> Option<&TranscriptEntry> {
-    entries.iter().rev().find(|e| e.is_user())
-}
-
-/// Get the most recent assistant message
-pub fn get_last_assistant_message(entries: &[TranscriptEntry]) -> Option<&TranscriptEntry> {
-    entries.iter().rev().find(|e| e.is_assistant())
 }
 
 /// Format recent messages for context (for sending to superego LLM)

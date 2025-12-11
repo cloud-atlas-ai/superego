@@ -1,12 +1,13 @@
 use clap::{Parser, Subcommand};
 use std::path::Path;
 
+mod bd;
 mod claude;
 mod decision;
 mod evaluate;
+mod feedback;
 mod init;
 mod state;
-mod tools;
 mod transcript;
 
 #[derive(Parser)]
@@ -33,21 +34,8 @@ enum Commands {
         transcript_path: String,
     },
 
-    /// Check if a tool action is allowed (called by PreToolUse hook)
-    Check {
-        /// Name of the tool being used
-        #[arg(long)]
-        tool_name: String,
-    },
-
     /// Accept feedback and clear pending state
     Acknowledge,
-
-    /// Override a block with user approval (allows single action)
-    Override {
-        /// Reason for the override
-        reason: String,
-    },
 
     /// Query decision history
     History {
@@ -58,6 +46,12 @@ enum Commands {
 
     /// Inject context into Claude session (called by SessionStart hook)
     ContextInject,
+
+    /// Check if there's pending feedback (instant, for hooks)
+    HasFeedback,
+
+    /// Get pending feedback and clear queue
+    GetFeedback,
 
     /// Snapshot state before context compaction (called by PreCompact hook)
     Precompact {
@@ -78,6 +72,13 @@ enum Commands {
 
     /// Re-enable superego for this project
     Enable,
+
+    /// LLM-based evaluation with natural language feedback
+    EvaluateLlm {
+        /// Path to the transcript JSONL file
+        #[arg(long)]
+        transcript_path: String,
+    },
 }
 
 fn main() {
@@ -89,7 +90,7 @@ fn main() {
                 Ok(()) => {
                     println!("Superego initialized in .superego/");
                     println!("  - prompt.md: system prompt (customize as needed)");
-                    println!("  - state.json: current phase (exploring)");
+                    println!("  - state.json: override/disabled state");
                     println!("  - decisions/: decision journal");
                     println!("\nNext: configure hooks in .claude/settings.json");
                 }
@@ -104,6 +105,8 @@ fn main() {
             }
         }
         Commands::Evaluate { transcript_path } => {
+            // AIDEV-NOTE: This command now redirects to evaluate-llm
+            // The old phase-based evaluation is removed.
             let transcript = Path::new(&transcript_path);
             let superego_dir = Path::new(".superego");
 
@@ -113,94 +116,29 @@ fn main() {
                 std::process::exit(1);
             }
 
-            // Run evaluation with fallback
-            let result = evaluate::evaluate_with_fallback(transcript, superego_dir, 10);
+            // Run LLM evaluation
+            match evaluate::evaluate_llm(transcript, superego_dir, 10) {
+                Ok(result) => {
+                    println!(
+                        r#"{{"has_concerns": {}, "cost_usd": {:.6}}}"#,
+                        result.has_concerns,
+                        result.cost_usd
+                    );
 
-            // Output result as JSON for hook consumption
-            println!(
-                r#"{{"phase": "{}", "previous": "{}", "changed": {}, "cost_usd": {:.6}}}"#,
-                result.phase,
-                result.previous_phase,
-                result.changed,
-                result.cost_usd
-            );
-
-            // Log concerns to stderr (visible but doesn't affect hook)
-            for concern in &result.concerns {
-                eprintln!("Concern: {}", concern);
-            }
-
-            if let Some(scope) = &result.approved_scope {
-                eprintln!("Approved scope: {}", scope);
-            }
-        }
-        Commands::Check { tool_name } => {
-            let superego_dir = Path::new(".superego");
-            let state_mgr = state::StateManager::new(superego_dir);
-
-            // Read tools always pass - no state check needed
-            if !tools::requires_gating(&tool_name) {
-                println!(r#"{{"decision": "allow", "reason": "read-only tool"}}"#);
-                return;
-            }
-
-            // Write tools - check state
-            match state_mgr.load() {
-                Ok(mut current_state) => {
-                    if current_state.allows_write() {
-                        // Check if this was an override (single-use)
-                        if current_state.pending_override.is_some() {
-                            current_state.consume_override();
-                            if let Err(e) = state_mgr.save(&current_state) {
-                                eprintln!("Warning: failed to clear override: {}", e);
-                            }
-                            println!(r#"{{"decision": "allow", "reason": "override consumed"}}"#);
-                        } else {
-                            println!(r#"{{"decision": "allow", "reason": "phase is ready"}}"#);
-                        }
+                    if result.has_concerns {
+                        eprintln!("Feedback:\n{}", result.feedback);
                     } else {
-                        // Block with helpful message
-                        let reason = format!(
-                            "Phase is {}. User confirmation needed before write actions.",
-                            current_state.phase
-                        );
-                        println!(r#"{{"decision": "block", "phase": "{}", "reason": "{}"}}"#,
-                            current_state.phase, reason);
-                        std::process::exit(1);
+                        eprintln!("No concerns.");
                     }
                 }
                 Err(e) => {
-                    // AIDEV-NOTE: On state read error, fail open with warning
-                    // This prevents state corruption from blocking all work
-                    eprintln!("Warning: failed to read state: {}", e);
-                    println!(r#"{{"decision": "allow", "reason": "state read error - fail open"}}"#);
+                    eprintln!("Evaluation failed: {}", e);
+                    std::process::exit(1);
                 }
             }
         }
         Commands::Acknowledge => {
             println!("sg acknowledge - not yet implemented");
-        }
-        Commands::Override { reason } => {
-            let superego_dir = Path::new(".superego");
-            let state_mgr = state::StateManager::new(superego_dir);
-            let journal = decision::Journal::new(superego_dir);
-
-            match state_mgr.update(|s| {
-                s.set_override(reason.clone());
-            }) {
-                Ok(_) => {
-                    // Also record in decision journal
-                    let decision = decision::Decision::override_granted(None, reason);
-                    if let Err(e) = journal.write(&decision) {
-                        eprintln!("Warning: failed to write decision journal: {}", e);
-                    }
-                    println!("Override set. Next blocked action will be allowed.");
-                }
-                Err(e) => {
-                    eprintln!("Error setting override: {}", e);
-                    std::process::exit(1);
-                }
-            }
         }
         Commands::History { limit } => {
             let superego_dir = Path::new(".superego");
@@ -219,17 +157,8 @@ fn main() {
                             println!("---");
                             println!("Timestamp: {}", d.timestamp);
                             println!("Type: {:?}", d.decision_type);
-                            if let Some(from) = d.from_state {
-                                println!("From: {}", from);
-                            }
-                            if let Some(to) = d.to_state {
-                                println!("To: {}", to);
-                            }
                             if let Some(trigger) = &d.trigger {
                                 println!("Trigger: {}", trigger);
-                            }
-                            if let Some(scope) = &d.approved_scope {
-                                println!("Scope: {}", scope);
                             }
                             if let Some(ctx) = &d.context {
                                 println!("Context: {}", ctx);
@@ -246,6 +175,31 @@ fn main() {
         Commands::ContextInject => {
             println!("sg context-inject - not yet implemented");
         }
+        Commands::HasFeedback => {
+            let superego_dir = Path::new(".superego");
+            let queue = feedback::FeedbackQueue::new(superego_dir);
+
+            if queue.has_feedback() {
+                // Exit 0 = has feedback
+                std::process::exit(0);
+            } else {
+                // Exit 1 = no feedback
+                std::process::exit(1);
+            }
+        }
+        Commands::GetFeedback => {
+            let superego_dir = Path::new(".superego");
+            let queue = feedback::FeedbackQueue::new(superego_dir);
+
+            match queue.get_and_clear() {
+                Some(content) => {
+                    println!("{}", content);
+                }
+                None => {
+                    println!("No pending feedback.");
+                }
+            }
+        }
         Commands::Precompact { transcript_path } => {
             println!("sg precompact --transcript-path {} - not yet implemented", transcript_path);
         }
@@ -257,6 +211,39 @@ fn main() {
         }
         Commands::Enable => {
             println!("sg enable - not yet implemented");
+        }
+        Commands::EvaluateLlm { transcript_path } => {
+            let transcript = Path::new(&transcript_path);
+            let superego_dir = Path::new(".superego");
+
+            // Check if superego is initialized
+            if !superego_dir.exists() {
+                eprintln!("Superego not initialized. Run 'sg init' first.");
+                std::process::exit(1);
+            }
+
+            // Run LLM evaluation
+            match evaluate::evaluate_llm(transcript, superego_dir, 10) {
+                Ok(result) => {
+                    // Output for hook/debugging
+                    println!(
+                        r#"{{"has_concerns": {}, "cost_usd": {:.6}}}"#,
+                        result.has_concerns,
+                        result.cost_usd
+                    );
+
+                    // Log feedback to stderr
+                    if result.has_concerns {
+                        eprintln!("Feedback:\n{}", result.feedback);
+                    } else {
+                        eprintln!("No concerns.");
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Evaluation failed: {}", e);
+                    std::process::exit(1);
+                }
+            }
         }
     }
 }
