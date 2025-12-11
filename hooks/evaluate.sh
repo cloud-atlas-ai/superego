@@ -1,9 +1,9 @@
 #!/bin/bash
-# Stop hook for superego
-# Triggers LLM evaluation when Claude finishes responding
+# Superego evaluation hook
+# Used by: Stop (after response), PreCompact (before context truncation)
 #
-# AIDEV-NOTE: This runs after Claude completes a response, before user types.
-# Perfect time to evaluate what Claude just did while user is reading/thinking.
+# AIDEV-NOTE: Single script for all evaluation triggers. Evaluates
+# everything since last_evaluated timestamp.
 
 # Read hook input from stdin
 INPUT=$(cat)

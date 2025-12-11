@@ -1,29 +1,18 @@
 # Superego Hooks
 
-These hooks integrate superego with Claude Code for bd-based phase gating.
+These hooks integrate superego with Claude Code for LLM-based evaluation.
 
 ## Architecture
 
 ```
-Stop hook ──────────► sg evaluate-bd ──────► Updates state + writes feedback
-                      (runs when Claude finishes)
+Stop / PreCompact ──► sg evaluate-llm ──► Feedback queue + decision journal
+                     (evaluates new messages since last_evaluated)
 
 User types...
 
-UserPromptSubmit ───► sg has-feedback ─────► If blocking, surfaces to Claude
-                      (runs when user submits)
-
-PreToolUse ─────────► sg check ────────────► Gates writes based on state
-                      (runs before write tools)
+UserPromptSubmit ───► sg get-feedback ──► Injects pending feedback as context
+                     (surfaces superego advice to Claude)
 ```
-
-## Phase Detection via bd
-
-Phase is determined by bd task state, not LLM conversation analysis:
-- **No tasks in_progress** → read-only mode (exploring)
-- **Tasks in_progress** → ready phase (writes allowed)
-
-This is observable, auditable, and fast (no LLM calls).
 
 ## Installation
 
@@ -48,7 +37,17 @@ This is observable, auditable, and fast (no LLM calls).
            "hooks": [
              {
                "type": "command",
-               "command": "/path/to/higher-peak/hooks/stop.sh"
+               "command": "/path/to/higher-peak/hooks/evaluate.sh"
+             }
+           ]
+         }
+       ],
+       "PreCompact": [
+         {
+           "hooks": [
+             {
+               "type": "command",
+               "command": "/path/to/higher-peak/hooks/evaluate.sh"
              }
            ]
          }
@@ -62,17 +61,6 @@ This is observable, auditable, and fast (no LLM calls).
              }
            ]
          }
-       ],
-       "PreToolUse": [
-         {
-           "matcher": "Edit|Write|Bash|Task|NotebookEdit",
-           "hooks": [
-             {
-               "type": "command",
-               "command": "/path/to/higher-peak/hooks/pre-tool-use.sh"
-             }
-           ]
-         }
        ]
      }
    }
@@ -80,39 +68,28 @@ This is observable, auditable, and fast (no LLM calls).
 
 ## How It Works
 
-### Stop Hook
-- Runs when Claude finishes responding (before user types)
-- Calls `sg evaluate-bd` to check bd state
-- Updates `.superego/state.json` and writes feedback if issues
+### Evaluate Hook (Stop + PreCompact)
+- Runs when Claude finishes responding OR before context compaction
+- Calls `sg evaluate-llm` with transcript path
+- Evaluates all messages since `last_evaluated` timestamp
+- Writes feedback to queue and decision journal if concerns found
 
 ### UserPromptSubmit Hook
 - Runs when user submits a prompt
-- Calls `sg has-feedback` to check for pending feedback
-- If blocking feedback exists, surfaces it to Claude
-- If non-blocking, injects as context
-
-### PreToolUse Hook
-- Runs before write tools (Edit, Write, Bash, Task, NotebookEdit)
-- Calls `sg check` which uses state set by evaluate-bd
-- Blocks if no tasks are in progress
+- Calls `sg get-feedback` to retrieve pending feedback
+- Injects feedback as context for Claude to consider
 
 ## Commands
 
 ```bash
-# Fast bd-based evaluation (triggered by Stop hook)
-sg evaluate-bd
+# LLM-based evaluation (triggered by hooks)
+sg evaluate-llm --transcript-path /path/to/transcript.jsonl
 
-# Check for pending feedback (instant, for hooks)
+# Check for pending feedback (instant)
 sg has-feedback
 
 # Get and clear pending feedback
 sg get-feedback
-
-# Check if tool action is allowed
-sg check --tool-name Edit
-
-# Set manual override for next blocked action
-sg override "user approved"
 
 # View decision history
 sg history --limit 5
@@ -120,7 +97,7 @@ sg history --limit 5
 
 ## Environment Variables
 
-- `SUPEREGO_DISABLED=1` - Bypass all superego checks
+- `SUPEREGO_DISABLED=1` - Bypass all superego evaluation
 
 ## Troubleshooting
 
@@ -129,17 +106,7 @@ Check superego state:
 cat .superego/state.json
 ```
 
-Check bd task status:
-```bash
-bd list --status in_progress
-```
-
 View decision history:
 ```bash
 sg history --limit 5
-```
-
-Manually set override:
-```bash
-sg override "user approved"
 ```

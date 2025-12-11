@@ -53,13 +53,6 @@ enum Commands {
     /// Get pending feedback and clear queue
     GetFeedback,
 
-    /// Snapshot state before context compaction (called by PreCompact hook)
-    Precompact {
-        /// Path to the transcript JSONL file
-        #[arg(long)]
-        transcript_path: String,
-    },
-
     /// Reset superego state (recovery from corruption)
     Reset {
         /// Also clear the superego Claude session
@@ -199,9 +192,6 @@ fn main() {
                     println!("No pending feedback.");
                 }
             }
-        }
-        Commands::Precompact { transcript_path } => {
-            println!("sg precompact --transcript-path {} - not yet implemented", transcript_path);
         }
         Commands::Reset { clear_session } => {
             println!("sg reset --clear-session={} - not yet implemented", clear_session);
