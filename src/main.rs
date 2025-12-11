@@ -153,7 +153,26 @@ fn main() {
             println!("sg acknowledge - not yet implemented");
         }
         Commands::Override { reason } => {
-            println!("sg override {:?} - not yet implemented", reason);
+            let superego_dir = Path::new(".superego");
+            let state_mgr = state::StateManager::new(superego_dir);
+            let journal = decision::Journal::new(superego_dir);
+
+            match state_mgr.update(|s| {
+                s.set_override(reason.clone());
+            }) {
+                Ok(_) => {
+                    // Also record in decision journal
+                    let decision = decision::Decision::override_granted(None, reason);
+                    if let Err(e) = journal.write(&decision) {
+                        eprintln!("Warning: failed to write decision journal: {}", e);
+                    }
+                    println!("Override set. Next blocked action will be allowed.");
+                }
+                Err(e) => {
+                    eprintln!("Error setting override: {}", e);
+                    std::process::exit(1);
+                }
+            }
         }
         Commands::History { limit } => {
             let superego_dir = Path::new(".superego");
