@@ -1,0 +1,8 @@
+timestamp: 2025-12-11T20:37:33.262730Z
+session_id: null
+type: phase_transition
+from_state: ready
+to_state: exploring
+context: null
+trigger: No task in progress. Claim a task with `bd update <id> --status in_progress` before making changes.
+approved_scope: null

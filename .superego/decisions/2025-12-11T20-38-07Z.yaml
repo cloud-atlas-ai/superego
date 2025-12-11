@@ -1,0 +1,8 @@
+timestamp: 2025-12-11T20:38:07.480305Z
+session_id: null
+type: phase_transition
+from_state: exploring
+to_state: ready
+context: null
+trigger: bd state change
+approved_scope: Implement bd-based phase detection

@@ -98,6 +98,10 @@ pub fn invoke(
     // The message is passed as the prompt argument
     cmd.arg(message);
 
+    // AIDEV-NOTE: Recursion prevention - superego's Claude calls must not
+    // trigger hooks that call superego again. Hooks check this env var.
+    cmd.env("SUPEREGO_DISABLED", "1");
+
     // Execute the command
     let output = cmd.output()?;
 
