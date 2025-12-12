@@ -19,11 +19,9 @@ This creates feedback loops where Claude can course-correct both during work and
 ## Quickstart
 
 ```bash
-# Build and install
-git clone <repo>
-cd higher-peak
-cargo build --release
-sudo cp target/release/sg /usr/local/bin/
+# Install via Homebrew
+brew tap cloud-atlas-ai/superego
+brew install sg
 
 # Initialize in your project
 cd /path/to/your/project
@@ -123,6 +121,7 @@ sg reset             # Remove all superego files and hooks
 sg evaluate-llm      # Run LLM evaluation (called by hooks)
 sg has-feedback      # Check for pending feedback (exit 0=yes, 1=no)
 sg get-feedback      # Get and clear pending feedback
+sg --version         # Show version
 ```
 
 ## Requirements
@@ -133,4 +132,4 @@ sg get-feedback      # Get and clear pending feedback
 
 ## License
 
-MIT
+Source-available. See [LICENSE](LICENSE) for details.
