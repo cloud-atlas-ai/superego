@@ -150,7 +150,7 @@ fi
 
 # Step 8: Publish to crates.io
 log "Publishing to crates.io..."
-cargo publish || error "Failed to publish to crates.io"
+cargo publish --allow-dirty || error "Failed to publish to crates.io"
 
 # Step 9: Commit formula update
 log "Committing formula update..."
