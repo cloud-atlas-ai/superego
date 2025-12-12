@@ -1,8 +1,8 @@
 class Superego < Formula
   desc "Superego - Metacognitive advisor for Claude Code"
   homepage "https://github.com/cloud-atlas-ai/superego"
-  url "https://github.com/cloud-atlas-ai/superego/archive/refs/tags/v0.2.0.tar.gz"
-  sha256 "c431fa1c4a9205617b6dc31f9b49137262e407b29b08e6bebba9774414ee3d4f"
+  url "https://github.com/cloud-atlas-ai/superego/archive/refs/tags/v0.2.1.tar.gz"
+  sha256 "b2c345407d1e16036c39517bab86afc8beeb7fa14b2f1189a6b090c77d7fbd7e"
   license :cannot_represent
 
   depends_on "rust" => :build
