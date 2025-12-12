@@ -19,9 +19,12 @@ This creates feedback loops where Claude can course-correct both during work and
 ## Quickstart
 
 ```bash
-# Install via Homebrew
+# Install via Cargo
+cargo install superego
+
+# Or install via Homebrew
 brew tap cloud-atlas-ai/superego
-brew install sg
+brew install superego
 
 # Initialize in your project
 cd /path/to/your/project

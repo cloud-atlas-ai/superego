@@ -11,7 +11,9 @@
 # 4. Creates and pushes a git tag
 # 5. Waits for the tarball to be available
 # 6. Updates the Homebrew formula with new sha256
-# 7. Commits the formula update
+# 7. Publishes to crates.io
+# 8. Commits the formula update
+# 9. Updates the tap repository
 
 set -e
 
@@ -126,7 +128,7 @@ log "SHA256: $SHA256"
 
 # Step 7: Update Homebrew formula
 log "Updating Homebrew formula..."
-FORMULA="Formula/sg.rb"
+FORMULA="Formula/superego.rb"
 
 if [ ! -f "$FORMULA" ]; then
     error "Formula not found at $FORMULA"
@@ -146,13 +148,17 @@ if ! grep -q "$SHA256" "$FORMULA"; then
     error "Failed to update sha256 in formula"
 fi
 
-# Step 8: Commit formula update
+# Step 8: Publish to crates.io
+log "Publishing to crates.io..."
+cargo publish || error "Failed to publish to crates.io"
+
+# Step 9: Commit formula update
 log "Committing formula update..."
 git add "$FORMULA"
 git commit -m "Update Homebrew formula for $TAG"
 git push origin "$BRANCH"
 
-# Step 9: Update the tap repository
+# Step 10: Update the tap repository
 TAP_REPO="https://github.com/cloud-atlas-ai/homebrew-superego"
 TAP_DIR=$(mktemp -d)
 
@@ -160,10 +166,10 @@ log "Cloning tap repository..."
 git clone "$TAP_REPO" "$TAP_DIR" || error "Failed to clone tap repository"
 
 log "Updating tap formula..."
-cp "$FORMULA" "$TAP_DIR/Formula/sg.rb"
+cp "$FORMULA" "$TAP_DIR/Formula/superego.rb"
 
 cd "$TAP_DIR"
-git add Formula/sg.rb
+git add Formula/superego.rb
 git commit -m "Update sg to $TAG"
 git push origin main || git push origin master
 
@@ -177,5 +183,7 @@ log "Next steps:"
 log "  1. Create GitHub release at: $REPO_URL/releases/new?tag=$TAG"
 log ""
 log "Users can now install with:"
+log "  cargo install superego"
+log "  # or"
 log "  brew tap cloud-atlas-ai/superego"
-log "  brew install sg"
+log "  brew install superego"

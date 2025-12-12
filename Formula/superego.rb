@@ -1,4 +1,4 @@
-class Sg < Formula
+class Superego < Formula
   desc "Superego - Metacognitive advisor for Claude Code"
   homepage "https://github.com/cloud-atlas-ai/superego"
   url "https://github.com/cloud-atlas-ai/superego/archive/refs/tags/v0.1.0.tar.gz"
