@@ -192,8 +192,58 @@ fn main() {
                 }
             }
         }
-        Commands::Reset { clear_session } => {
-            println!("sg reset --clear-session={} - not yet implemented", clear_session);
+        Commands::Reset { clear_session: _ } => {
+            // Remove .superego directory
+            if Path::new(".superego").exists() {
+                if let Err(e) = std::fs::remove_dir_all(".superego") {
+                    eprintln!("Failed to remove .superego: {}", e);
+                } else {
+                    println!("Removed .superego/");
+                }
+            }
+
+            // Remove superego hooks from .claude/hooks/superego
+            let hooks_dir = Path::new(".claude/hooks/superego");
+            if hooks_dir.exists() {
+                if let Err(e) = std::fs::remove_dir_all(hooks_dir) {
+                    eprintln!("Failed to remove {}: {}", hooks_dir.display(), e);
+                } else {
+                    println!("Removed .claude/hooks/superego/");
+                }
+            }
+
+            // Remove superego hooks from .claude/settings.json
+            let settings_path = Path::new(".claude/settings.json");
+            if settings_path.exists() {
+                if let Ok(content) = std::fs::read_to_string(settings_path) {
+                    if let Ok(mut settings) = serde_json::from_str::<serde_json::Value>(&content) {
+                        if let Some(hooks) = settings.get_mut("hooks").and_then(|h| h.as_object_mut()) {
+                            for (_name, hook_array) in hooks.iter_mut() {
+                                if let Some(arr) = hook_array.as_array_mut() {
+                                    arr.retain(|h| {
+                                        !h.get("hooks")
+                                            .and_then(|hs| hs.as_array())
+                                            .and_then(|hs| hs.first())
+                                            .and_then(|h| h.get("command"))
+                                            .and_then(|c| c.as_str())
+                                            .map(|c| c.contains("superego"))
+                                            .unwrap_or(false)
+                                    });
+                                }
+                            }
+                            if let Ok(formatted) = serde_json::to_string_pretty(&settings) {
+                                if let Err(e) = std::fs::write(settings_path, formatted) {
+                                    eprintln!("Failed to update settings.json: {}", e);
+                                } else {
+                                    println!("Removed superego hooks from .claude/settings.json");
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            println!("\nSuperego reset complete. Run 'sg init' to reinitialize.");
         }
         Commands::Disable => {
             println!("sg disable - not yet implemented");
