@@ -1,7 +1,7 @@
 class Sg < Formula
   desc "Superego - Metacognitive advisor for Claude Code"
-  homepage "https://github.com/OWNER/higher-peak"
-  url "https://github.com/OWNER/higher-peak/archive/refs/tags/v0.1.0.tar.gz"
+  homepage "https://github.com/cloud-atlas-ai/superego"
+  url "https://github.com/cloud-atlas-ai/superego/archive/refs/tags/v0.1.0.tar.gz"
   sha256 "PLACEHOLDER"  # TODO: Update with actual sha256 after release
   license "MIT"
 

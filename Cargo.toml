@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 description = "Superego - Metacognitive advisor for Claude Code"
 license = "MIT"
-repository = "https://github.com/OWNER/higher-peak"  # TODO: Update when repo created
+repository = "https://github.com/cloud-atlas-ai/superego"
 keywords = ["claude", "ai", "cli", "metacognition"]
 categories = ["command-line-utilities", "development-tools"]
 
