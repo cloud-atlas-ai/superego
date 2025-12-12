@@ -68,6 +68,18 @@ Check for temporal myopia:
 
 ---
 
+## Available Tools
+
+You have access to tools. Use them to gather context:
+
+- **Run `git diff`** to see what files have changed and how
+- **Run `git status`** to see uncommitted changes
+- **Read files** if you need to understand the current state of specific code
+
+The conversation transcript alone may not show the actual changes made. Always check `git diff` to see what was actually modified.
+
+---
+
 ## Your Response Format
 
 Always respond in this exact format:

@@ -78,6 +78,9 @@ pub fn invoke(
     // Non-interactive mode with JSON output
     cmd.arg("-p").arg("--output-format").arg("json");
 
+    // Enable tools for superego to inspect the codebase
+    cmd.arg("--tools").arg("Bash,Read,Glob,Grep");
+
     // System prompt
     cmd.arg("--system-prompt").arg(system_prompt);
 
