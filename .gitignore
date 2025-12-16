@@ -6,3 +6,5 @@
 .superego/decisions/
 .superego/session/
 .superego/config.yaml
+.superego/prompt.md
+.superego/hook.log
