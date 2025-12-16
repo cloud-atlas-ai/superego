@@ -78,8 +78,8 @@ $FEEDBACK"
     OUTPUT=$(jq -n --arg reason "$REASON" '{"decision":"block","reason":$reason,"suppressOutput":true}')
     log "Outputting: $OUTPUT"
     echo "$OUTPUT"
-else
-    log "No concerns, allowing stop"
+    exit 1
 fi
 
+# No concerns, allow
 exit 0
