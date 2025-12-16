@@ -23,6 +23,27 @@ if [ ! -d ".superego" ]; then
     exit 0
 fi
 
+# --- Periodic eval check (catch drift from many small changes) ---
+if sg should-eval 2>/dev/null; then
+    log "Periodic eval triggered (time threshold)"
+    TRANSCRIPT_PATH=$(echo "$INPUT" | jq -r '.transcript_path // ""')
+    if [ -n "$TRANSCRIPT_PATH" ] && [ "$TRANSCRIPT_PATH" != "null" ]; then
+        sg evaluate-llm --transcript-path "$TRANSCRIPT_PATH" 2>> .superego/hook.log
+        if [ -s ".superego/feedback" ]; then
+            FEEDBACK=$(cat .superego/feedback)
+            rm -f .superego/feedback
+            log "Periodic eval blocking: ${FEEDBACK:0:100}..."
+            REASON="SUPEREGO FEEDBACK (periodic check):
+
+$FEEDBACK"
+            jq -n --arg reason "$REASON" '{"decision":"block","reason":$reason,"suppressOutput":true}'
+            exit 1
+        fi
+    fi
+fi
+
+# --- Large edit check (existing logic) ---
+
 # Get tool info
 TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // ""')
 

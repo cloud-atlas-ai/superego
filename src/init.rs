@@ -84,10 +84,10 @@ pub fn init_at(base_dir: &Path, force: bool) -> Result<(), InitError> {
     let state_mgr = StateManager::new(&superego_dir);
     state_mgr.save(&State::default())?;
 
-    // Create empty config (placeholder for future settings)
+    // Create config with defaults
     fs::write(
         superego_dir.join("config.yaml"),
-        "# Superego configuration\n# model: claude-sonnet-4-20250514\n# timeout_ms: 30000\n",
+        "# Superego configuration\neval_interval_minutes: 5  # Periodic eval to catch drift\n# model: claude-sonnet-4-20250514\n# timeout_ms: 30000\n",
     )?;
 
     // Set up Claude Code hooks

@@ -72,6 +72,9 @@ enum Commands {
         #[arg(long)]
         transcript_path: String,
     },
+
+    /// Check if periodic evaluation is due (for hooks)
+    ShouldEval,
 }
 
 fn main() {
@@ -281,6 +284,70 @@ fn main() {
                 Err(e) => {
                     eprintln!("Evaluation failed: {}", e);
                     std::process::exit(1);
+                }
+            }
+        }
+        Commands::ShouldEval => {
+            let superego_dir = Path::new(".superego");
+
+            // Check if superego is initialized
+            if !superego_dir.exists() {
+                println!("no");
+                std::process::exit(1);
+            }
+
+            // Read state to get last_evaluated
+            let state_mgr = state::StateManager::new(superego_dir);
+            let current_state = match state_mgr.load() {
+                Ok(s) => s,
+                Err(_) => {
+                    // Can't read state, assume eval needed
+                    println!("yes");
+                    std::process::exit(0);
+                }
+            };
+
+            // Read config to get eval_interval_minutes (default: 5)
+            let config_path = superego_dir.join("config.yaml");
+            let interval_minutes: i64 = if config_path.exists() {
+                std::fs::read_to_string(&config_path)
+                    .ok()
+                    .and_then(|content| {
+                        // Simple parsing: look for "eval_interval_minutes: N"
+                        for line in content.lines() {
+                            let line = line.trim();
+                            if line.starts_with("eval_interval_minutes:") {
+                                return line
+                                    .strip_prefix("eval_interval_minutes:")
+                                    .and_then(|v| v.trim().parse().ok());
+                            }
+                        }
+                        None
+                    })
+                    .unwrap_or(5)
+            } else {
+                5
+            };
+
+            // Check if eval is due
+            match current_state.last_evaluated {
+                None => {
+                    // Never evaluated, should eval
+                    println!("yes");
+                    std::process::exit(0);
+                }
+                Some(last) => {
+                    let now = chrono::Utc::now();
+                    let elapsed = now.signed_duration_since(last);
+                    let threshold = chrono::Duration::minutes(interval_minutes);
+
+                    if elapsed >= threshold {
+                        println!("yes");
+                        std::process::exit(0);
+                    } else {
+                        println!("no");
+                        std::process::exit(1);
+                    }
                 }
             }
         }
