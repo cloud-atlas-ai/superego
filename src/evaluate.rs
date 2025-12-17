@@ -59,8 +59,6 @@ pub struct LlmEvaluationResult {
     pub has_concerns: bool,
     /// Cost of the LLM call
     pub cost_usd: f64,
-    /// Session ID for continuation
-    pub session_id: String,
 }
 
 /// Parse the structured decision response from the LLM
@@ -154,7 +152,6 @@ pub fn evaluate_llm(
             feedback: "No concerns.".to_string(),
             has_concerns: false,
             cost_usd: 0.0,
-            session_id: String::new(),
         });
     }
 
@@ -252,7 +249,6 @@ pub fn evaluate_llm(
         feedback,
         has_concerns,
         cost_usd: response.total_cost_usd,
-        session_id: response.session_id,
     })
 }
 
