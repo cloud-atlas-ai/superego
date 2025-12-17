@@ -58,18 +58,29 @@ pub fn read_transcript(path: &Path) -> Result<Vec<TranscriptEntry>, TranscriptEr
     Ok(entries)
 }
 
-/// Get messages since a given timestamp
+/// Get messages since a given timestamp, optionally filtered by session
 /// AIDEV-NOTE: This is the primary context selection method. We evaluate
 /// everything new since the last evaluation, not an arbitrary window.
-pub fn get_messages_since(
-    entries: &[TranscriptEntry],
+/// When session_id is provided, only messages from that session are included
+/// to prevent cross-session context bleed.
+pub fn get_messages_since<'a>(
+    entries: &'a [TranscriptEntry],
     since: Option<DateTime<Utc>>,
-) -> Vec<&TranscriptEntry> {
+    session_id: Option<&str>,
+) -> Vec<&'a TranscriptEntry> {
+    let session_filter = |e: &&TranscriptEntry| -> bool {
+        match session_id {
+            Some(sid) => e.session_id() == Some(sid),
+            None => true, // No session filter - include all (backward compat)
+        }
+    };
+
     match since {
         Some(cutoff) => {
             entries
                 .iter()
                 .filter(|e| e.is_message())
+                .filter(session_filter)
                 .filter(|e| {
                     // Include if timestamp is after cutoff (or if no timestamp)
                     e.timestamp()
@@ -80,8 +91,8 @@ pub fn get_messages_since(
                 .collect()
         }
         None => {
-            // No previous evaluation - include all messages
-            entries.iter().filter(|e| e.is_message()).collect()
+            // No previous evaluation - include all messages (for this session)
+            entries.iter().filter(|e| e.is_message()).filter(session_filter).collect()
         }
     }
 }

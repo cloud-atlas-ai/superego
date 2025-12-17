@@ -145,8 +145,8 @@ pub fn evaluate_llm(
     // Load transcript
     let entries = transcript::read_transcript(transcript_path)?;
 
-    // Get messages since last evaluation
-    let messages = transcript::get_messages_since(&entries, state.last_evaluated);
+    // Get messages since last evaluation, filtered by session_id to prevent cross-session bleed
+    let messages = transcript::get_messages_since(&entries, state.last_evaluated, session_id);
 
     // Skip if nothing new to evaluate
     if messages.is_empty() {
