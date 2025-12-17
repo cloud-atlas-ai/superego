@@ -106,15 +106,36 @@ Decisions are stored as JSON files in `.superego/decisions/` (base) and `.supere
 
 **YAML Migration:** Legacy `.yaml` decision files can be converted to JSON:
 ```bash
-# Simple converter (requires python3 for JSON escaping)
-find .superego -name "*.yaml" -path "*/decisions/*" | while read f; do
-  # Extract fields and output JSON
+#!/bin/bash
+# IMPORTANT: Backup .superego/ before running!
+set -e
+
+find .superego -name "*.yaml" -path "*/decisions/*" | while IFS= read -r f; do
+  # Extract fields
   timestamp=$(grep "^timestamp:" "$f" | cut -d' ' -f2-)
   session_id=$(grep "^session_id:" "$f" | cut -d' ' -f2-)
-  type=$(grep "^type:" "$f" | cut -d' ' -f2-)
+  dtype=$(grep "^type:" "$f" | cut -d' ' -f2-)
   context=$(awk '/^context:/{flag=1;next}/^[a-z_]+:/{flag=0}flag' "$f" | sed 's/^  //')
-  context_json=$(echo "$context" | python3 -c 'import sys,json;print(json.dumps(sys.stdin.read().strip()))')
-  echo "{\"timestamp\":\"$timestamp\",\"session_id\":\"$session_id\",\"type\":\"$type\",\"context\":$context_json,\"trigger\":null}" > "${f%.yaml}.json"
+
+  # Use environment variables for safe JSON encoding
+  json_out=$(TIMESTAMP="$timestamp" SESSION_ID="$session_id" DTYPE="$dtype" CONTEXT="$context" python3 -c "
+import os, json
+print(json.dumps({
+    'timestamp': os.environ['TIMESTAMP'],
+    'session_id': None if os.environ['SESSION_ID'] == 'null' else os.environ['SESSION_ID'],
+    'type': os.environ['DTYPE'],
+    'context': os.environ['CONTEXT'].strip(),
+    'trigger': None
+}, indent=2))
+")
+
+  # Validate JSON before writing
+  if echo "$json_out" | python3 -m json.tool > /dev/null 2>&1; then
+    echo "$json_out" > "${f%.yaml}.json"
+    echo "Converted: $f"
+  else
+    echo "ERROR: Invalid JSON for $f" >&2
+  fi
 done
 ```
 

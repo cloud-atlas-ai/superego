@@ -391,7 +391,7 @@ fn main() {
             if decisions.is_empty() {
                 if json {
                     println!(
-                        r#"{{"stats":{{"total":0,"session_count":0}},"analysis":"No decisions recorded yet."}}"#
+                        r#"{{"stats":{{"total":0,"start_date":null,"end_date":null,"session_count":0}},"analysis":"No decisions recorded yet."}}"#
                     );
                 } else {
                     println!("No decisions recorded yet.");

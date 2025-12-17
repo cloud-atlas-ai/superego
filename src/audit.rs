@@ -108,7 +108,7 @@ pub fn analyze_decisions(decisions: &[Decision]) -> Result<String, ClaudeError> 
     let prompt = build_audit_prompt(decisions);
 
     let options = ClaudeOptions {
-        model: Some("haiku".to_string()), // Use haiku for cost efficiency
+        model: None,
         no_session_persistence: true,
         ..Default::default()
     };

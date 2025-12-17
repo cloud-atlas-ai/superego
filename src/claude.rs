@@ -179,22 +179,4 @@ mod tests {
         assert_eq!(response.result, "test");
         assert_eq!(response.session_id, "abc");
     }
-
-    /// Test that without piping, stdout would be empty (demonstrating the bug)
-    #[test]
-    fn test_stdout_empty_without_pipe() {
-        let mut cmd = Command::new("echo");
-        cmd.arg("hello");
-
-        // NOT piping stdout - this is the bug we fixed
-        // Note: we can't actually test this returns empty because
-        // wait_with_output() behavior varies, but we document it here
-
-        let child = cmd.spawn().expect("Failed to spawn echo");
-        let output = child.wait_with_output().expect("Failed to wait");
-
-        // Without explicit piping, behavior depends on how spawn() was called
-        // The key point is: always pipe when you need to capture output
-        assert!(output.status.success());
-    }
 }
