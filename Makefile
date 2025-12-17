@@ -8,10 +8,10 @@ build:
 test:
 	cargo test
 
-# Release - auto-increments patch version, or pass VERSION=x.y.z
+# Release - auto-increments patch version, or pass SUPEREGO_VERSION=x.y.z
 release:
-ifdef VERSION
-	./scripts/release.sh $(VERSION)
+ifdef SUPEREGO_VERSION
+	./scripts/release.sh $(SUPEREGO_VERSION)
 else
 	./scripts/release.sh
 endif
