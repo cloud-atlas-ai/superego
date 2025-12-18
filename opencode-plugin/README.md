@@ -62,9 +62,10 @@ curl -L -o superego.js https://github.com/cloud-atlas-ai/superego/releases/downl
 mkdir -p .opencode/plugin
 mv superego.js .opencode/plugin/
 
-# 3. Start OpenCode - auto-inits .superego/ and fetches full prompt from GitHub
+# 3. Start OpenCode
 opencode
-# First run: creates .superego/prompt.md, then restart OpenCode
+
+# 4. Initialize superego (in OpenCode, run /superego-init)
 ```
 
 ### Option B: Build from source
@@ -81,7 +82,7 @@ cd /path/to/your/project
 mkdir -p .opencode/plugin
 cp /tmp/superego/opencode-plugin/dist/index.js .opencode/plugin/superego.js
 
-# 3. Start OpenCode - auto-inits .superego/
+# 3. Start OpenCode and run /superego-init
 opencode
 ```
 
@@ -95,7 +96,7 @@ curl -L -o superego.js https://github.com/cloud-atlas-ai/superego/releases/downl
 mkdir -p ~/.config/opencode/plugin
 mv superego.js ~/.config/opencode/plugin/
 
-# 3. Start OpenCode in any project - auto-inits .superego/ per project
+# 3. In each project, run /superego-init to initialize
 ```
 
 ## Test Plan
