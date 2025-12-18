@@ -179,10 +179,18 @@ export const Superego: Plugin = async ({ directory, client }) => {
           return;
         }
 
+        // Prevent duplicate evaluation from dual plugin instances (cost savings)
+        const lockFile = join(superegoDir, `.eval-${sessionId}.lock`);
+        if (existsSync(lockFile)) {
+          return; // Another instance is already evaluating
+        }
+        writeFileSync(lockFile, Date.now().toString());
+
         // Skip eval sessions we created (prevent recursion)
         if (evalSessionIds.has(sessionId)) {
           log(superegoDir, `Skipping eval session ${sessionId} (in Set)`);
           evalSessionIds.delete(sessionId); // Clean up
+          try { unlinkSync(lockFile); } catch {}
           return;
         }
 
@@ -192,6 +200,7 @@ export const Superego: Plugin = async ({ directory, client }) => {
           const title = (sessionInfo as any)?.data?.title || (sessionInfo as any)?.title || "";
           if (title.includes("[superego-eval]")) {
             log(superegoDir, `Skipping eval session ${sessionId} (by title)`);
+            try { unlinkSync(lockFile); } catch {}
             return;
           }
         } catch {
@@ -279,6 +288,9 @@ export const Superego: Plugin = async ({ directory, client }) => {
           }
         } catch (e) {
           log(superegoDir, `ERROR: Evaluation failed: ${e}`);
+        } finally {
+          // Clean up lock file
+          try { unlinkSync(lockFile); } catch {}
         }
       }
     },
