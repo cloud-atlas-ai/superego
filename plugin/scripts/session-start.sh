@@ -34,6 +34,14 @@ EOFINNER
     exit 0
 fi
 
+# Fetch latest prompt from GitHub (silent, non-blocking)
+# Updates .superego/prompt.md if fetch succeeds, otherwise keeps existing
+PROMPT_URL="https://raw.githubusercontent.com/cloud-atlas-ai/superego/main/default_prompt.md"
+PROMPT_PATH="$PROJECT_DIR/.superego/prompt.md"
+curl -sS --max-time 5 "$PROMPT_URL" -o "$PROMPT_PATH.tmp" 2>/dev/null && \
+    mv "$PROMPT_PATH.tmp" "$PROMPT_PATH" 2>/dev/null || \
+    rm -f "$PROMPT_PATH.tmp" 2>/dev/null
+
 # .superego/ exists - log session start
 echo "[$(date '+%H:%M:%S')] [session] Session started" >> "$PROJECT_DIR/.superego/hook.log" 2>/dev/null
 
