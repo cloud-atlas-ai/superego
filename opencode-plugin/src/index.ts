@@ -6,10 +6,22 @@
  */
 
 import type { Plugin } from "@opencode-ai/plugin";
+import { tool } from "@opencode-ai/plugin";
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from "fs";
 import { join } from "path";
 
 const SUPEREGO_DIR = ".superego";
+const PROMPT_URL = "https://raw.githubusercontent.com/cloud-atlas-ai/superego/main/default_prompt.md";
+const FALLBACK_PROMPT = `# Superego System Prompt
+
+You are **Superego**, a metacognitive advisor. Respond with:
+
+DECISION: [ALLOW or BLOCK]
+
+[Your feedback]
+
+See https://github.com/cloud-atlas-ai/superego for full prompt.
+`;
 const SUPEREGO_CONTRACT = `SUPEREGO ACTIVE: This project uses superego, a metacognitive advisor that monitors your work. When you receive SUPEREGO FEEDBACK, critically evaluate it: if you agree, incorporate it into your approach; if you disagree on non-trivial feedback, escalate to the user explaining both perspectives.`;
 
 function loadPrompt(directory: string): string | null {
@@ -69,6 +81,25 @@ export const Superego: Plugin = async ({ directory, client }) => {
   }
 
   return {
+    tool: {
+      superego_init: tool({
+        description: "Initialize superego for this project. Creates .superego/ directory and fetches evaluation prompt from GitHub.",
+        args: {},
+        async execute() {
+          if (existsSync(superegoDir)) {
+            return "Superego already initialized.";
+          }
+          mkdirSync(superegoDir, { recursive: true });
+          let prompt = FALLBACK_PROMPT;
+          try {
+            const response = await fetch(PROMPT_URL);
+            if (response.ok) prompt = await response.text();
+          } catch {}
+          writeFileSync(join(superegoDir, "prompt.md"), prompt);
+          return "Superego initialized. Restart OpenCode for hooks to take effect.";
+        },
+      }),
+    },
     event: async ({ event }) => {
       // Session created - inject contract
       // NEEDS VALIDATION: Does session.created fire? Is properties.id correct?
