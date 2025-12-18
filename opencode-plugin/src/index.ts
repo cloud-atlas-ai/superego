@@ -7,8 +7,19 @@
 
 import type { Plugin } from "@opencode-ai/plugin";
 import { tool } from "@opencode-ai/plugin";
-import { existsSync, readFileSync, mkdirSync, writeFileSync, rmSync, unlinkSync } from "fs";
+import { existsSync, readFileSync, mkdirSync, writeFileSync, rmSync, unlinkSync, appendFileSync } from "fs";
 import { join } from "path";
+
+// Log to file since OpenCode is a TUI
+function log(superegoDir: string, message: string): void {
+  const timestamp = new Date().toISOString();
+  const logFile = join(superegoDir, "hook.log");
+  try {
+    appendFileSync(logFile, `${timestamp} ${message}\n`);
+  } catch {
+    // Ignore log failures
+  }
+}
 
 const SUPEREGO_DIR = ".superego";
 const PROMPT_URL = "https://raw.githubusercontent.com/cloud-atlas-ai/superego/main/default_prompt.md";
@@ -67,17 +78,16 @@ function formatConversation(messages: any[]): string {
 export const Superego: Plugin = async ({ directory, client }) => {
   const superegoDir = join(directory, SUPEREGO_DIR);
 
-  // Skip if not initialized
+  // Skip if not initialized (can't log yet - no .superego dir)
   if (!existsSync(superegoDir)) {
-    console.log("[superego] Not initialized. Run /superego-init or: mkdir -p .superego && curl -o .superego/prompt.md https://raw.githubusercontent.com/cloud-atlas-ai/superego/main/default_prompt.md");
     return {};
   }
 
-  console.log("[superego] Plugin loaded");
+  log(superegoDir, "Plugin loaded");
 
   const prompt = loadPrompt(directory);
   if (!prompt) {
-    console.log("[superego] No prompt.md found, evaluation disabled");
+    log(superegoDir, "No prompt.md found, evaluation disabled");
   }
 
   return {
@@ -155,7 +165,7 @@ export const Superego: Plugin = async ({ directory, client }) => {
       // NEEDS VALIDATION: Does session.created fire? Is properties.id correct?
       if (event.type === "session.created") {
         const sessionId = (event as any).properties?.id;
-        console.log(`[superego] Session created: ${sessionId}`);
+        log(superegoDir, `Session created: ${sessionId}`);
 
         if (sessionId) {
           try {
@@ -167,9 +177,9 @@ export const Superego: Plugin = async ({ directory, client }) => {
                 parts: [{ type: "text", text: SUPEREGO_CONTRACT }],
               },
             });
-            console.log("[superego] Contract injected");
+            log(superegoDir, "Contract injected");
           } catch (e) {
-            console.error("[superego] Failed to inject contract:", e);
+            log(superegoDir, `ERROR: Failed to inject contract: ${e}`);
           }
         }
       }
@@ -180,19 +190,19 @@ export const Superego: Plugin = async ({ directory, client }) => {
         const sessionId = (event as any).properties?.id;
         if (!sessionId || !prompt) return;
 
-        console.log(`[superego] Session idle: ${sessionId}, evaluating...`);
+        log(superegoDir, `Session idle: ${sessionId}, evaluating...`);
 
         try {
           // Get conversation messages
           const messagesResult = await client.session.messages({ path: { id: sessionId } });
           const messages = messagesResult.data;
-          console.log(`[superego] Got ${messages?.length || 0} messages`);
+          log(superegoDir, `Got ${messages?.length || 0} messages`);
           if (messages?.length) {
-            console.log("[superego] First message structure:", JSON.stringify(messages[0], null, 2));
+            log(superegoDir, `First message structure: ${JSON.stringify(messages[0], null, 2)}`);
           }
 
           if (!messages?.length) {
-            console.log("[superego] No messages to evaluate");
+            log(superegoDir, "No messages to evaluate");
             return;
           }
 
@@ -200,18 +210,18 @@ export const Superego: Plugin = async ({ directory, client }) => {
           const conversation = formatConversation(messages);
 
           // Create eval session and get response via OpenCode's configured LLM
-          console.log("[superego] Creating eval session...");
+          log(superegoDir, "Creating eval session...");
           const evalSession = await client.session.create({ body: {} });
           const evalSessionId = (evalSession as any)?.id;
 
           if (!evalSessionId) {
-            console.error("[superego] Failed to create eval session");
+            log(superegoDir, "ERROR: Failed to create eval session");
             return;
           }
 
           const evalPrompt = `${prompt}\n\n---\n\n## Conversation to Evaluate\n\n${conversation}`;
 
-          console.log("[superego] Calling LLM via OpenCode...");
+          log(superegoDir, "Calling LLM via OpenCode...");
           // session.prompt() returns the AssistantMessage response directly
           const result = await client.session.prompt({
             path: { id: evalSessionId },
@@ -223,7 +233,7 @@ export const Superego: Plugin = async ({ directory, client }) => {
           // Extract response text
           // NEEDS VALIDATION: What's the actual response structure?
           const response = (result as any)?.parts?.map((p: any) => p.text || p.content || "").join("\n") || "";
-          console.log("[superego] LLM response:", response.slice(0, 200));
+          log(superegoDir, `LLM response: ${response.slice(0, 200)}`);
 
           // Clean up eval session
           try {
@@ -233,15 +243,15 @@ export const Superego: Plugin = async ({ directory, client }) => {
           }
 
           const { block, feedback } = parseDecision(response);
-          console.log(`[superego] Decision: ${block ? "BLOCK" : "ALLOW"}`);
+          log(superegoDir, `Decision: ${block ? "BLOCK" : "ALLOW"}`);
 
           if (block && feedback) {
             writeFeedback(directory, sessionId, feedback);
-            console.log(`[superego] Feedback written to .superego/sessions/${sessionId}/feedback`);
+            log(superegoDir, `Feedback written to .superego/sessions/${sessionId}/feedback`);
             // TODO: Find way to surface feedback to user in OpenCode UI
           }
         } catch (e) {
-          console.error("[superego] Evaluation failed:", e);
+          log(superegoDir, `ERROR: Evaluation failed: ${e}`);
         }
       }
     },
