@@ -65,7 +65,7 @@ mv superego.js .opencode/plugin/
 # 3. Start OpenCode
 opencode
 
-# 4. Initialize superego (in OpenCode, run /superego-init)
+# 4. Initialize superego (ask OpenCode to use the superego tool with "init")
 ```
 
 ### Option B: Build from source
@@ -82,7 +82,7 @@ cd /path/to/your/project
 mkdir -p .opencode/plugin
 cp /tmp/superego/opencode-plugin/dist/index.js .opencode/plugin/superego.js
 
-# 3. Start OpenCode and run /superego-init
+# 3. Start OpenCode and ask it to use superego init
 opencode
 ```
 
@@ -96,8 +96,22 @@ curl -L -o superego.js https://github.com/cloud-atlas-ai/superego/releases/downl
 mkdir -p ~/.config/opencode/plugin
 mv superego.js ~/.config/opencode/plugin/
 
-# 3. In each project, run /superego-init to initialize
+# 3. In each project, ask OpenCode to use superego init
 ```
+
+## Tool Commands
+
+The plugin provides a single `superego` tool with these commands:
+
+| Command | Description |
+|---------|-------------|
+| `status` | Check if superego is initialized and enabled (default) |
+| `init` | Initialize superego, creates `.superego/` and fetches prompt |
+| `disable` | Temporarily disable superego (hooks won't fire) |
+| `enable` | Re-enable superego after disable |
+| `remove` | Remove superego from project (deletes `.superego/`) |
+
+Usage: Ask OpenCode "use the superego tool with init" or "check superego status".
 
 ## Test Plan
 

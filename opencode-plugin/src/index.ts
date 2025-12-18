@@ -7,7 +7,7 @@
 
 import type { Plugin } from "@opencode-ai/plugin";
 import { tool } from "@opencode-ai/plugin";
-import { existsSync, readFileSync, mkdirSync, writeFileSync } from "fs";
+import { existsSync, readFileSync, mkdirSync, writeFileSync, rmSync, unlinkSync } from "fs";
 import { join } from "path";
 
 const SUPEREGO_DIR = ".superego";
@@ -82,25 +82,75 @@ export const Superego: Plugin = async ({ directory, client }) => {
 
   return {
     tool: {
-      superego_init: tool({
-        description: "Initialize superego for this project. Creates .superego/ directory and fetches evaluation prompt from GitHub.",
-        args: {},
-        async execute() {
-          if (existsSync(superegoDir)) {
-            return "Superego already initialized.";
+      superego: tool({
+        description: "Manage superego metacognitive advisor. Commands: status (default), init, disable, enable, remove.",
+        args: {
+          command: tool.schema.enum(["status", "init", "disable", "enable", "remove"]).default("status"),
+        },
+        async execute({ command }) {
+          const disabledFile = join(superegoDir, ".disabled");
+
+          switch (command) {
+            case "status":
+              if (!existsSync(superegoDir)) {
+                return "Superego not initialized. Use 'superego init' to set up.";
+              }
+              if (existsSync(disabledFile)) {
+                return "Superego initialized but DISABLED. Use 'superego enable' to re-enable.";
+              }
+              const hasPrompt = existsSync(join(superegoDir, "prompt.md"));
+              return `Superego ENABLED. Prompt: ${hasPrompt ? "found" : "missing"}`;
+
+            case "init":
+              if (existsSync(superegoDir)) {
+                return "Superego already initialized.";
+              }
+              mkdirSync(superegoDir, { recursive: true });
+              let fetchedPrompt = FALLBACK_PROMPT;
+              try {
+                const response = await fetch(PROMPT_URL);
+                if (response.ok) fetchedPrompt = await response.text();
+              } catch {}
+              writeFileSync(join(superegoDir, "prompt.md"), fetchedPrompt);
+              return "Superego initialized. Restart OpenCode for hooks to take effect.";
+
+            case "disable":
+              if (!existsSync(superegoDir)) {
+                return "Superego not initialized. Nothing to disable.";
+              }
+              if (existsSync(disabledFile)) {
+                return "Superego already disabled.";
+              }
+              writeFileSync(disabledFile, new Date().toISOString());
+              return "Superego disabled. Use 'superego enable' to re-enable.";
+
+            case "enable":
+              if (!existsSync(superegoDir)) {
+                return "Superego not initialized. Use 'superego init' first.";
+              }
+              if (!existsSync(disabledFile)) {
+                return "Superego already enabled.";
+              }
+              unlinkSync(disabledFile);
+              return "Superego re-enabled.";
+
+            case "remove":
+              if (!existsSync(superegoDir)) {
+                return "Superego not initialized. Nothing to remove.";
+              }
+              rmSync(superegoDir, { recursive: true, force: true });
+              return "Superego removed. Restart OpenCode to complete cleanup.";
           }
-          mkdirSync(superegoDir, { recursive: true });
-          let prompt = FALLBACK_PROMPT;
-          try {
-            const response = await fetch(PROMPT_URL);
-            if (response.ok) prompt = await response.text();
-          } catch {}
-          writeFileSync(join(superegoDir, "prompt.md"), prompt);
-          return "Superego initialized. Restart OpenCode for hooks to take effect.";
         },
       }),
     },
     event: async ({ event }) => {
+      // Check if disabled
+      const disabledFile = join(superegoDir, ".disabled");
+      if (existsSync(disabledFile)) {
+        return; // Skip all hooks when disabled
+      }
+
       // Session created - inject contract
       // NEEDS VALIDATION: Does session.created fire? Is properties.id correct?
       if (event.type === "session.created") {
@@ -134,7 +184,8 @@ export const Superego: Plugin = async ({ directory, client }) => {
 
         try {
           // Get conversation messages
-          const messages = await client.session.messages({ path: { id: sessionId } });
+          const messagesResult = await client.session.messages({ path: { id: sessionId } });
+          const messages = messagesResult.data;
           console.log(`[superego] Got ${messages?.length || 0} messages`);
           if (messages?.length) {
             console.log("[superego] First message structure:", JSON.stringify(messages[0], null, 2));
@@ -150,7 +201,7 @@ export const Superego: Plugin = async ({ directory, client }) => {
 
           // Create eval session and get response via OpenCode's configured LLM
           console.log("[superego] Creating eval session...");
-          const evalSession = await client.session.create({ body: { directory } });
+          const evalSession = await client.session.create({ body: {} });
           const evalSessionId = (evalSession as any)?.id;
 
           if (!evalSessionId) {
