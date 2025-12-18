@@ -81,7 +81,14 @@ cp dist/index.js ~/.config/opencode/plugin/superego.js
 
 Requires:
 - `.superego/prompt.md` - evaluation criteria (same as Claude Code)
-- OpenCode configured with an LLM provider (uses whatever model OpenCode is configured with)
+- OpenCode configured with an LLM provider
+
+**Key architectural advantage:** The OpenCode plugin uses OpenCode's own session/LLM API for evaluation. This means:
+- **No separate API keys** - uses whatever model/provider OpenCode is configured with
+- **No `sg` binary required** - pure TypeScript, no Rust toolchain needed
+- **Same model for work and oversight** - evaluation runs on the same LLM as the main session
+
+This is a departure from the Claude Code plugin which shells out to `claude -p`. Consider backporting this pattern to Claude Code for consistency.
 
 ## Known Limitations (Needs Validation)
 
