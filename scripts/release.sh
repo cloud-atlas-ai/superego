@@ -94,6 +94,15 @@ if ! grep -q "version = \"$VERSION\"" Cargo.toml; then
     error "Failed to update version in Cargo.toml"
 fi
 
+# Update plugin version
+PLUGIN_JSON="plugin/.claude-plugin/plugin.json"
+log "Updating plugin version in $PLUGIN_JSON..."
+sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" "$PLUGIN_JSON"
+
+if ! grep -q "\"version\": \"$VERSION\"" "$PLUGIN_JSON"; then
+    error "Failed to update version in $PLUGIN_JSON"
+fi
+
 # Step 2: Run tests
 log "Running tests..."
 cargo test || error "Tests failed"
@@ -104,7 +113,7 @@ cargo build --release || error "Build failed"
 
 # Step 4: Commit version bump (if needed)
 log "Committing version bump..."
-git add Cargo.toml
+git add Cargo.toml "$PLUGIN_JSON"
 if git diff --cached --quiet; then
     log "Version already at $VERSION, skipping commit"
 else
