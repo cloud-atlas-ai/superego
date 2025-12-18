@@ -231,6 +231,25 @@ export const Superego: Plugin = async ({ directory, client }) => {
           // Format conversation for evaluation
           const conversation = formatConversation(messages);
 
+          // Test mode: magic phrase triggers instant BLOCK without LLM call
+          if (conversation.includes("[SUPEREGO-TEST-BLOCK]")) {
+            log(superegoDir, "Test mode: triggering BLOCK");
+            const testFeedback = "This is a test BLOCK triggered by [SUPEREGO-TEST-BLOCK]. The superego feedback injection is working correctly.";
+            writeFeedback(directory, sessionId, testFeedback);
+            try {
+              await client.session.prompt({
+                path: { id: sessionId },
+                body: {
+                  parts: [{ type: "text", text: `SUPEREGO FEEDBACK: ${testFeedback}` }],
+                },
+              });
+              log(superegoDir, "Test feedback injected");
+            } catch (e) {
+              log(superegoDir, `ERROR: Failed to inject test feedback: ${e}`);
+            }
+            return;
+          }
+
           // Create eval session and get response via OpenCode's configured LLM
           log(superegoDir, "Creating eval session...");
           // Mark eval sessions with distinctive title so we can skip them
@@ -285,6 +304,19 @@ export const Superego: Plugin = async ({ directory, client }) => {
           if (block && feedback) {
             writeFeedback(directory, sessionId, feedback);
             log(superegoDir, `Feedback written to .superego/sessions/${sessionId}/feedback`);
+
+            // Inject feedback into the original session so model sees it
+            try {
+              await client.session.prompt({
+                path: { id: sessionId },
+                body: {
+                  parts: [{ type: "text", text: `SUPEREGO FEEDBACK: ${feedback}` }],
+                },
+              });
+              log(superegoDir, `Feedback injected into session ${sessionId}`);
+            } catch (e) {
+              log(superegoDir, `ERROR: Failed to inject feedback: ${e}`);
+            }
           }
         } catch (e) {
           log(superegoDir, `ERROR: Evaluation failed: ${e}`);
