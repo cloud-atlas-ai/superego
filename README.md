@@ -87,6 +87,14 @@ The plugin includes:
 - `scripts/*.sh` - Hook scripts that call the `sg` binary
 - `commands/*.md` - Slash commands for superego management
 
+**Updating the plugin:**
+```bash
+# Refresh marketplace cache, then update
+claude plugin marketplace update superego
+claude plugin update superego@superego
+# Restart Claude Code to apply
+```
+
 ## What You'll See
 
 When superego has feedback, Claude will continue working instead of stopping, addressing concerns like:

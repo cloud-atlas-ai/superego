@@ -55,6 +55,24 @@ Located in `plugin/`:
 Located in `hooks/` (embedded in binary for legacy mode):
 - `session-start.sh`, `evaluate.sh`, `pre-tool-use.sh`
 
+### Updating the Plugin
+
+Version sources that must stay in sync:
+- `Cargo.toml` - Binary version
+- `plugin/.claude-plugin/plugin.json` - Plugin manifest version
+- `.claude-plugin/marketplace.json` - Marketplace advertised version
+
+The release script (`scripts/release.sh`) updates all three automatically.
+
+**Manual update (for users):**
+```bash
+claude plugin marketplace update superego   # Refresh marketplace cache
+claude plugin update superego@superego      # Update plugin
+# Restart Claude Code to apply
+```
+
+**Why marketplace update is needed:** Claude Code caches marketplace metadata. Without refreshing, `plugin update` won't see new versions even if pushed to GitHub.
+
 ### Key Design Patterns
 
 **Recursion prevention:** Superego's own Claude calls set `SUPEREGO_DISABLED=1` to prevent hooks from triggering on themselves.
