@@ -50,23 +50,45 @@ opencode-plugin/              # OpenCode adapter (TypeScript)
 
 ## Quick Start
 
-### Option A: Project-level install (recommended)
+### Option A: Download from GitHub (easiest)
 
 ```bash
-# In your project directory
 cd /path/to/your/project
 
-# 1. Clone and build the plugin
+# 1. Download pre-built plugin from GitHub Actions
+# Go to: https://github.com/cloud-atlas-ai/superego/actions/workflows/ci.yml
+# Click latest successful run → Artifacts → Download "superego-opencode-plugin"
+# Or use gh CLI:
+gh run download --name superego-opencode-plugin --dir /tmp/superego-plugin
+
+# 2. Install plugin
+mkdir -p .opencode/plugin
+cp /tmp/superego-plugin/index.js .opencode/plugin/superego.js
+
+# 3. Create superego config
+mkdir -p .superego
+curl -o .superego/prompt.md https://raw.githubusercontent.com/cloud-atlas-ai/superego/main/default_prompt.md
+
+# 4. Start OpenCode
+opencode
+```
+
+### Option B: Build from source
+
+```bash
+cd /path/to/your/project
+
+# 1. Clone and build
 git clone https://github.com/cloud-atlas-ai/superego.git /tmp/superego
 cd /tmp/superego/opencode-plugin
 bun install
 bun build src/index.ts --outdir dist --target bun
 
-# 2. Install to your project
+# 2. Install plugin
 mkdir -p /path/to/your/project/.opencode/plugin
 cp dist/index.js /path/to/your/project/.opencode/plugin/superego.js
 
-# 3. Initialize superego config
+# 3. Create superego config
 mkdir -p /path/to/your/project/.superego
 cp /tmp/superego/default_prompt.md /path/to/your/project/.superego/prompt.md
 
@@ -74,23 +96,19 @@ cp /tmp/superego/default_prompt.md /path/to/your/project/.superego/prompt.md
 opencode
 ```
 
-### Option B: Global install (all projects)
+### Option C: Global install (all projects)
 
 ```bash
-# 1. Clone and build the plugin
-git clone https://github.com/cloud-atlas-ai/superego.git /tmp/superego
-cd /tmp/superego/opencode-plugin
-bun install
-bun build src/index.ts --outdir dist --target bun
+# 1. Download or build plugin (see above)
 
 # 2. Install globally
 mkdir -p ~/.config/opencode/plugin
-cp dist/index.js ~/.config/opencode/plugin/superego.js
+cp /path/to/index.js ~/.config/opencode/plugin/superego.js
 
-# 3. Initialize superego in each project you want oversight
+# 3. In each project, create superego config
 cd /path/to/your/project
 mkdir -p .superego
-cp /tmp/superego/default_prompt.md .superego/prompt.md
+curl -o .superego/prompt.md https://raw.githubusercontent.com/cloud-atlas-ai/superego/main/default_prompt.md
 ```
 
 ## Test Plan
