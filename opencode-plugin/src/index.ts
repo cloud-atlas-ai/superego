@@ -240,7 +240,7 @@ export const Superego: Plugin = async ({ directory, client }) => {
               await client.session.prompt({
                 path: { id: sessionId },
                 body: {
-                  parts: [{ type: "text", text: `SUPEREGO FEEDBACK: ${testFeedback}` }],
+                  parts: [{ type: "text", text: `SUPEREGO FEEDBACK:\n\n${testFeedback}` }],
                 },
               });
               log(superegoDir, "Test feedback injected");
@@ -266,7 +266,7 @@ export const Superego: Plugin = async ({ directory, client }) => {
           log(superegoDir, `Eval session created: ${evalSessionId}`);
           evalSessionIds.add(evalSessionId); // Track to prevent recursive evaluation
 
-          const evalPrompt = `${prompt}\n\n---\n\n## Conversation to Evaluate\n\n${conversation}`;
+          const evalPrompt = `${prompt}\n\nIMPORTANT: You are a verifier only. Output DECISION and feedback text. DO NOT USE TOOLS.\n\n---\n\n## Conversation to Evaluate\n\n${conversation}`;
 
           log(superegoDir, `Calling LLM via OpenCode with model ${modelString || "default"}...`);
           // session.prompt() returns the AssistantMessage response directly
@@ -276,6 +276,7 @@ export const Superego: Plugin = async ({ directory, client }) => {
             body: {
               model: originalModel ? { providerID: originalModel.providerID, modelID: originalModel.modelID } : undefined,
               parts: [{ type: "text", text: evalPrompt }],
+              tools: { write: false, edit: false, bash: false },  // Eval session has no tools
             },
           });
 
@@ -310,7 +311,7 @@ export const Superego: Plugin = async ({ directory, client }) => {
               await client.session.prompt({
                 path: { id: sessionId },
                 body: {
-                  parts: [{ type: "text", text: `SUPEREGO FEEDBACK: ${feedback}` }],
+                  parts: [{ type: "text", text: `SUPEREGO FEEDBACK:\n\n${feedback}` }],
                 },
               });
               log(superegoDir, `Feedback injected into session ${sessionId}`);
