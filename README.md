@@ -20,10 +20,10 @@ When you use Claude Code (or OpenCode) with superego enabled:
 
 This creates feedback loops where Claude can course-correct both during work and before presenting results.
 
-## Quickstart
+## Quickstart: Claude Code
 
 ```bash
-# 1. Install the Claude Code plugin
+# 1. Install the plugin
 /plugin marketplace add cloud-atlas-ai/superego
 /plugin install superego@superego
 
@@ -31,9 +31,9 @@ This creates feedback loops where Claude can course-correct both during work and
 /superego:init
 ```
 
-That's it. The `/superego:init` command detects if the binary is missing and offers to install it via Homebrew or Cargo.
+The `/superego:init` command detects if the binary is missing and offers to install it via Homebrew or Cargo.
 
-## Slash Commands
+### Slash Commands
 
 | Command | Description |
 |---------|-------------|
@@ -43,57 +43,55 @@ That's it. The `/superego:init` command detects if the binary is missing and off
 | `/superego:disable` | Temporarily disable for current session |
 | `/superego:remove` | Remove superego from project |
 
-## Manual Installation
+### Updating
 
-If you prefer to install the binary manually:
-
-**Homebrew (macOS):**
 ```bash
-brew install cloud-atlas-ai/superego/superego
-```
-
-**Cargo (cross-platform):**
-```bash
-cargo install superego
-```
-
-**From source:**
-```bash
-git clone https://github.com/cloud-atlas-ai/superego.git
-cd superego
-cargo install --path .
-```
-
-Then run `sg init` in your project to create the `.superego/` configuration.
-
-## Plugin Installation Details
-
-Claude Code uses a marketplace system for plugins. The superego plugin contains hook scripts that run automatically.
-
-**From GitHub (recommended):**
-```bash
-/plugin marketplace add cloud-atlas-ai/superego
-/plugin install superego@superego
-```
-
-**From a local clone (for development):**
-```bash
-/plugin marketplace add /absolute/path/to/superego
-/plugin install superego@superego
-```
-
-The plugin includes:
-- `hooks/hooks.json` - Defines which events trigger superego
-- `scripts/*.sh` - Hook scripts that call the `sg` binary
-- `commands/*.md` - Slash commands for superego management
-
-**Updating the plugin:**
-```bash
-# Refresh marketplace cache, then update
-claude plugin marketplace update superego
-claude plugin update superego@superego
+claude plugin marketplace update superego   # Refresh cache
+claude plugin update superego@superego      # Update plugin
 # Restart Claude Code to apply
 ```
+
+### Manual binary installation
+
+If you prefer to install the `sg` binary manually instead of via `/superego:init`:
+
+```bash
+# Homebrew (macOS)
+brew install cloud-atlas-ai/superego/superego
+
+# Cargo (cross-platform)
+cargo install superego
+
+# From source
+git clone https://github.com/cloud-atlas-ai/superego.git
+cd superego && cargo install --path .
+```
+
+Then run `sg init` in your project to create `.superego/`.
+
+## Quickstart: OpenCode (Alpha)
+
+OpenCode support is in alpha. It uses a TypeScript plugin that runs entirely within OpenCode—no separate binary needed.
+
+```bash
+# 1. Download plugin to your project
+mkdir -p .opencode/plugin
+curl -L -o .opencode/plugin/superego.js \
+  https://github.com/cloud-atlas-ai/superego/releases/latest/download/index.js
+
+# 2. Start OpenCode and initialize
+opencode
+# Ask: "use superego init"
+```
+
+Or install globally:
+```bash
+mkdir -p ~/.config/opencode/plugin
+curl -L -o ~/.config/opencode/plugin/superego.js \
+  https://github.com/cloud-atlas-ai/superego/releases/latest/download/index.js
+```
+
+See [opencode-plugin/README.md](opencode-plugin/README.md) for build-from-source instructions and detailed configuration.
 
 ## What You'll See
 

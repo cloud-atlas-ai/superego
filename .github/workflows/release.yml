@@ -44,3 +44,22 @@ jobs:
         with:
           files: ./artifacts/index.js
           generate_release_notes: true
+          body: |
+            ## Installation
+
+            ### Claude Code
+            ```bash
+            /plugin marketplace add cloud-atlas-ai/superego
+            /plugin install superego@superego
+            /superego:init
+            ```
+
+            ### OpenCode
+            ```bash
+            mkdir -p .opencode/plugin
+            curl -L -o .opencode/plugin/superego.js \
+              https://github.com/cloud-atlas-ai/superego/releases/latest/download/index.js
+            ```
+            See [opencode-plugin/README.md](https://github.com/cloud-atlas-ai/superego/blob/main/opencode-plugin/README.md) for details.
+
+            ---
