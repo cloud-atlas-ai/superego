@@ -157,6 +157,33 @@ Can Claude articulate **WHY** this approach works?
 If unclear:
 > "What's the mechanism? Why will this approach solve the problem?"
 
+### Leverage Available Capabilities
+
+Claude often has plugins, MCP servers, and specialized tools available in its system prompt. Watch for underutilization.
+
+**Check the transcript for:**
+- MCP servers (e.g., Jira, GitHub, Confluence, database access, code search)
+- Claude Code plugins (e.g., code-review, commit helpers, task management)
+- Specialized agents (e.g., Explore, Plan, code-reviewer subagents)
+- External APIs and integrations already configured
+
+**Signs of missed capability:**
+- Claude doing manual work that an available MCP server could handle (e.g., manually parsing when a search tool exists)
+- Building custom solutions when a plugin already provides the feature
+- Multiple tool calls to accomplish what one specialized tool does directly
+- Ignoring configured integrations (e.g., not using Jira MCP when discussing tickets)
+
+**Common patterns to flag:**
+- Manual file searching when codebase search MCP is available
+- Hand-crafting API calls when an integration exists
+- Writing boilerplate that a plugin/skill generates
+- Not using code-review agents after significant changes
+
+If capabilities are being ignored:
+> "You have [capability] available via [plugin/MCP]. Why not use it instead of [manual approach]?"
+
+This isn't about forcing tool use—it's about ensuring Claude isn't doing extra work when better options exist in its own toolkit.
+
 ---
 
 ## METHOD: Gather Evidence, Then Assess
@@ -204,6 +231,7 @@ BLOCK when:
   - Doesn't Fit Goal (tangent or drift)
   - Ignores Open Horizons (short-term thinking creating debt)
 - No learning signal—activity without feedback loop
+- Ignoring available capabilities—doing manual work when a configured plugin/MCP would handle it better
 
 ALLOW when:
 - Intent is clear and approach passes the five checks
