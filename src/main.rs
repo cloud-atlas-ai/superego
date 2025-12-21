@@ -4,6 +4,7 @@ use std::path::Path;
 mod audit;
 mod bd;
 mod claude;
+mod codex_llm;
 mod decision;
 mod evaluate;
 mod feedback;
@@ -477,41 +478,145 @@ fn main() {
         Commands::EvaluateCodex => {
             let superego_dir = Path::new(".superego");
 
+            // Log to .superego/codex.log
+            let log = |msg: &str| {
+                let log_path = superego_dir.join("codex.log");
+                let timestamp = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ");
+                let line = format!("{} {}\n", timestamp, msg);
+                let _ = std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(&log_path)
+                    .and_then(|mut f| std::io::Write::write_all(&mut f, line.as_bytes()));
+            };
+
+            log("evaluate-codex started");
+
             // Check if superego is initialized
             if !superego_dir.exists() {
+                log("ERROR: .superego not initialized");
                 eprintln!("Superego not initialized. Run 'sg init' first.");
                 std::process::exit(1);
             }
+
+            // Check for lock file to prevent concurrent evals
+            let lock_path = superego_dir.join("codex.lock");
+            let lock_timeout = std::time::Duration::from_secs(300); // 5 minutes
+
+            if lock_path.exists() {
+                if let Ok(meta) = lock_path.metadata() {
+                    if let Ok(modified) = meta.modified() {
+                        if modified.elapsed().unwrap_or(lock_timeout) < lock_timeout {
+                            log("SKIP: Another evaluation in progress (lock file exists)");
+                            eprintln!("Another evaluation in progress. Skipping.");
+                            println!(r#"{{"has_concerns": false, "skipped": true}}"#);
+                            return;
+                        }
+                    }
+                }
+                // Stale lock, remove it
+                let _ = std::fs::remove_file(&lock_path);
+            }
+
+            // Create lock file
+            if let Err(e) = std::fs::write(&lock_path, chrono::Utc::now().to_rfc3339()) {
+                log(&format!("WARN: Could not create lock file: {}", e));
+            }
+
+            // Ensure lock is removed on exit (scope guard)
+            struct LockGuard<'a>(&'a Path);
+            impl<'a> Drop for LockGuard<'a> {
+                fn drop(&mut self) {
+                    let _ = std::fs::remove_file(self.0);
+                }
+            }
+            let _lock_guard = LockGuard(&lock_path);
 
             // Find the most recent Codex session
             let session_path = match transcript::codex::find_latest_codex_session() {
                 Some(p) => p,
                 None => {
+                    log("ERROR: No Codex sessions found");
                     eprintln!("No Codex sessions found in ~/.codex/sessions/");
                     eprintln!("Make sure you have an active Codex session.");
                     std::process::exit(1);
                 }
             };
 
+            log(&format!("Session: {}", session_path.display()));
             eprintln!("Evaluating: {}", session_path.display());
 
-            // Run LLM evaluation
-            match evaluate::evaluate_llm(&session_path, superego_dir, Some("codex")) {
-                Ok(result) => {
-                    // Output for skill/debugging
+            // Read and format transcript
+            let entries = match transcript::codex::read_codex_transcript(&session_path) {
+                Ok(e) => e,
+                Err(e) => {
+                    log(&format!("ERROR reading transcript: {}", e));
+                    eprintln!("Failed to read transcript: {}", e);
+                    std::process::exit(1);
+                }
+            };
+
+            if entries.is_empty() {
+                log("No entries in transcript");
+                println!(r#"{{"has_concerns": false, "cost_usd": 0}}"#);
+                eprintln!("No concerns.");
+                return;
+            }
+
+            let context = transcript::codex::format_codex_context(&entries);
+
+            // Load system prompt
+            let prompt_path = superego_dir.join("prompt.md");
+            let system_prompt = if prompt_path.exists() {
+                std::fs::read_to_string(&prompt_path).unwrap_or_else(|_| {
+                    include_str!("../default_prompt.md").to_string()
+                })
+            } else {
+                include_str!("../default_prompt.md").to_string()
+            };
+
+            let message = format!(
+                "Review the following Codex conversation and provide feedback.\n\n\
+                --- CONVERSATION ---\n{}\n--- END CONVERSATION ---",
+                context
+            );
+
+            log("Calling Codex LLM...");
+
+            // Use Codex LLM (not Claude) for evaluation
+            match codex_llm::invoke(&system_prompt, &message, None) {
+                Ok(response) => {
+                    log(&format!("Response received, cost=${:.4}", response.total_cost_usd));
+
+                    // Parse decision from response
+                    let has_concerns = !response.result.contains("DECISION: ALLOW");
+
                     println!(
                         r#"{{"has_concerns": {}, "cost_usd": {:.6}}}"#,
-                        result.has_concerns, result.cost_usd
+                        has_concerns, response.total_cost_usd
                     );
 
-                    // Log feedback to stderr
-                    if result.has_concerns {
-                        eprintln!("Feedback:\n{}", result.feedback);
+                    if has_concerns {
+                        log("BLOCK - concerns found");
+                        eprintln!("Feedback:\n{}", response.result);
                     } else {
+                        log("ALLOW - no concerns");
                         eprintln!("No concerns.");
                     }
                 }
+                Err(codex_llm::CodexLlmError::RateLimited { resets_in_seconds }) => {
+                    let msg = if let Some(secs) = resets_in_seconds {
+                        format!("SKIP: Rate limited (resets in {} min)", secs / 60)
+                    } else {
+                        "SKIP: Rate limited".to_string()
+                    };
+                    log(&msg);
+                    eprintln!("{}", msg);
+                    println!(r#"{{"has_concerns": false, "skipped": true, "reason": "rate_limited"}}"#);
+                    // Don't exit with error - this is expected behavior
+                }
                 Err(e) => {
+                    log(&format!("ERROR: {}", e));
                     eprintln!("Evaluation failed: {}", e);
                     std::process::exit(1);
                 }

@@ -22,14 +22,6 @@ pub struct CodexEntry {
     pub payload: serde_json::Value,
 }
 
-/// Content block in user messages
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ContentBlock {
-    #[serde(rename = "type")]
-    pub block_type: String,
-    pub text: Option<String>,
-}
-
 impl CodexEntry {
     /// Check if this is a user message (response_item with role=user)
     pub fn is_user_message(&self) -> bool {
@@ -98,6 +90,33 @@ impl CodexEntry {
             }
         }
         false
+    }
+
+    /// Extract agent message text
+    pub fn agent_text(&self) -> Option<String> {
+        if !self.is_agent_message() {
+            return None;
+        }
+        // Agent messages have content array with text blocks
+        if let Some(content) = self.payload.get("content") {
+            if let Some(arr) = content.as_array() {
+                let texts: Vec<&str> = arr
+                    .iter()
+                    .filter_map(|block| {
+                        let btype = block.get("type")?.as_str()?;
+                        if btype == "output_text" || btype == "text" {
+                            block.get("text")?.as_str()
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                if !texts.is_empty() {
+                    return Some(texts.join("\n"));
+                }
+            }
+        }
+        None
     }
 
     /// Extract user message text
@@ -276,6 +295,18 @@ pub fn format_codex_context(entries: &[CodexEntry]) -> String {
                 out
             };
             output.push_str("OUTPUT: ");
+            output.push_str(&truncated);
+            output.push_str("\n\n");
+        }
+
+        // Agent text responses
+        if let Some(text) = entry.agent_text() {
+            output.push_str("ASSISTANT: ");
+            let truncated = if text.len() > 2000 {
+                format!("{}... [truncated]", &text[..2000])
+            } else {
+                text
+            };
             output.push_str(&truncated);
             output.push_str("\n\n");
         }
