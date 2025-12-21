@@ -56,26 +56,6 @@ impl std::fmt::Display for OhError {
 
 impl std::error::Error for OhError {}
 
-/// A context (personal or shared space) in OH
-#[derive(Debug, Clone, Deserialize)]
-pub struct OhContext {
-    pub id: String,
-    pub name: String,
-    #[serde(default)]
-    pub description: Option<String>,
-}
-
-/// An endeavor (mission, aim, initiative, task) in OH
-#[derive(Debug, Clone, Deserialize)]
-pub struct OhEndeavor {
-    pub id: String,
-    pub title: String,
-    #[serde(default)]
-    pub description: Option<String>,
-    #[serde(default)]
-    pub node_type: Option<String>,
-}
-
 /// Full endeavor details from GET /api/endeavors/:id
 #[derive(Debug, Clone, Deserialize)]
 pub struct OhEndeavorFull {
@@ -95,7 +75,6 @@ struct GetEndeavorResponse {
 /// Log entry from GET /api/logs
 #[derive(Debug, Clone, Deserialize)]
 pub struct OhLogEntry {
-    pub id: String,
     pub content: String,
     pub log_date: String,
 }
@@ -127,87 +106,6 @@ impl OhClient {
     pub fn new() -> Result<Self, OhError> {
         let config = OhConfig::from_env().ok_or(OhError::NotConfigured)?;
         Ok(OhClient { config })
-    }
-
-    /// Check if OH is available and reachable
-    pub fn is_available(&self) -> bool {
-        // Simple health check - try to get contexts
-        self.get_contexts().is_ok()
-    }
-
-    /// Get all contexts the user has access to
-    pub fn get_contexts(&self) -> Result<Vec<OhContext>, OhError> {
-        let url = format!("{}/api/contexts", self.config.api_url);
-
-        let response = attohttpc::get(&url)
-            .header("Authorization", format!("Bearer {}", self.config.api_key))
-            .header("Content-Type", "application/json")
-            .timeout(std::time::Duration::from_secs(5))
-            .send()
-            .map_err(|e| OhError::RequestFailed(e.to_string()))?;
-
-        if !response.is_success() {
-            let status = response.status().as_u16();
-            let body = response.text().unwrap_or_default();
-            return Err(OhError::ApiError(status, body));
-        }
-
-        // OH returns { contexts: [...] } or just [...]
-        let body = response
-            .text()
-            .map_err(|e| OhError::ParseError(e.to_string()))?;
-
-        // Try parsing as { contexts: [...] } first
-        #[derive(Deserialize)]
-        struct ContextsResponse {
-            contexts: Vec<OhContext>,
-        }
-
-        if let Ok(wrapper) = serde_json::from_str::<ContextsResponse>(&body) {
-            return Ok(wrapper.contexts);
-        }
-
-        // Fall back to direct array
-        serde_json::from_str(&body).map_err(|e| OhError::ParseError(format!("{}: {}", e, body)))
-    }
-
-    /// Get endeavors in a context
-    pub fn get_endeavors(&self, context_id: &str) -> Result<Vec<OhEndeavor>, OhError> {
-        let url = format!(
-            "{}/api/dashboard?contextId={}",
-            self.config.api_url,
-            urlencoding::encode(context_id)
-        );
-
-        let response = attohttpc::get(&url)
-            .header("Authorization", format!("Bearer {}", self.config.api_key))
-            .header("Content-Type", "application/json")
-            .timeout(std::time::Duration::from_secs(5))
-            .send()
-            .map_err(|e| OhError::RequestFailed(e.to_string()))?;
-
-        if !response.is_success() {
-            let status = response.status().as_u16();
-            let body = response.text().unwrap_or_default();
-            return Err(OhError::ApiError(status, body));
-        }
-
-        let body = response
-            .text()
-            .map_err(|e| OhError::ParseError(e.to_string()))?;
-
-        // Dashboard returns { nodes: [...] }
-        #[derive(Deserialize)]
-        struct DashboardResponse {
-            nodes: Vec<OhEndeavor>,
-        }
-
-        if let Ok(wrapper) = serde_json::from_str::<DashboardResponse>(&body) {
-            return Ok(wrapper.nodes);
-        }
-
-        // Fall back to direct array
-        serde_json::from_str(&body).map_err(|e| OhError::ParseError(format!("{}: {}", e, body)))
     }
 
     /// Log a decision to an endeavor
@@ -332,11 +230,6 @@ impl OhClient {
 
         Ok(wrapper.logs)
     }
-}
-
-/// Check if OH integration is available (env vars set)
-pub fn is_configured() -> bool {
-    OhConfig::from_env().is_some()
 }
 
 /// Parse oh_endeavor_id from config file content
@@ -476,14 +369,6 @@ mod tests {
     }
 
     #[test]
-    fn test_is_configured_false_when_no_env() {
-        env::remove_var("OH_API_KEY");
-        env::remove_var("OH_API_URL");
-
-        assert!(!is_configured());
-    }
-
-    #[test]
     fn test_client_new_fails_when_not_configured() {
         env::remove_var("OH_API_KEY");
         env::remove_var("OH_API_URL");
@@ -561,10 +446,9 @@ mod tests {
 
     #[test]
     fn test_parse_logs_response() {
-        let json = r#"{"logs":[{"id":"log-1","content":"First log","log_date":"2025-12-20"},{"id":"log-2","content":"Second log","log_date":"2025-12-19"}]}"#;
+        let json = r#"{"logs":[{"content":"First log","log_date":"2025-12-20"},{"content":"Second log","log_date":"2025-12-19"}]}"#;
         let response: GetLogsResponse = serde_json::from_str(json).unwrap();
         assert_eq!(response.logs.len(), 2);
-        assert_eq!(response.logs[0].id, "log-1");
         assert_eq!(response.logs[0].content, "First log");
         assert_eq!(response.logs[0].log_date, "2025-12-20");
         assert_eq!(response.logs[1].log_date, "2025-12-19");
