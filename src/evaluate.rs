@@ -186,6 +186,11 @@ pub fn evaluate_llm(
         Err(_) => String::new(),
     };
 
+    // Get OH endeavor context (optional - graceful degradation if unavailable)
+    let oh_context = OhIntegration::new(superego_dir)
+        .map(|oh| oh.get_endeavor_context())
+        .unwrap_or_default();
+
     // Check for pending change context (from PreToolUse hook) - session-namespaced
     let pending_change_path = session_dir.join("pending_change.txt");
     let pending_change = if pending_change_path.exists() {
@@ -203,13 +208,13 @@ pub fn evaluate_llm(
         String::new()
     };
 
-    // Build message for superego - include bd context and pending change
+    // Build message for superego - include bd context, OH context, and pending change
     let message = format!(
         "Review the following Claude Code conversation and provide feedback.\n\n\
-        {}--- CONVERSATION ---\n\
+        {}{}--- CONVERSATION ---\n\
         {}\n\
         --- END CONVERSATION ---{}",
-        bd_context, context, pending_context
+        bd_context, oh_context, context, pending_context
     );
 
     // Load superego session ID if available (session-namespaced)

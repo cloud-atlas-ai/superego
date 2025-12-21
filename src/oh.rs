@@ -75,6 +75,35 @@ pub struct OhEndeavor {
     pub node_type: Option<String>,
 }
 
+/// Full endeavor details from GET /api/endeavors/:id
+#[derive(Debug, Clone, Deserialize)]
+pub struct OhEndeavorFull {
+    pub id: String,
+    pub title: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub status: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct GetEndeavorResponse {
+    endeavor: OhEndeavorFull,
+}
+
+/// Log entry from GET /api/logs
+#[derive(Debug, Clone, Deserialize)]
+pub struct OhLogEntry {
+    pub id: String,
+    pub content: String,
+    pub log_date: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct GetLogsResponse {
+    logs: Vec<OhLogEntry>,
+}
+
 /// Response from creating a log entry
 #[derive(Debug, Clone, Deserialize)]
 pub struct LogResponse {
@@ -226,6 +255,69 @@ impl OhClient {
             .map(|l| l.id)
             .unwrap_or_else(|| "unknown".to_string()))
     }
+
+    /// Get a single endeavor by ID
+    pub fn get_endeavor(&self, endeavor_id: &str) -> Result<OhEndeavorFull, OhError> {
+        let url = format!(
+            "{}/api/endeavors/{}",
+            self.config.api_url,
+            urlencoding::encode(endeavor_id)
+        );
+
+        let response = attohttpc::get(&url)
+            .header("Authorization", format!("Bearer {}", self.config.api_key))
+            .header("Content-Type", "application/json")
+            .timeout(std::time::Duration::from_secs(5))
+            .send()
+            .map_err(|e| OhError::RequestFailed(e.to_string()))?;
+
+        if !response.is_success() {
+            let status = response.status().as_u16();
+            let body = response.text().unwrap_or_default();
+            return Err(OhError::ApiError(status, body));
+        }
+
+        let body = response.text().map_err(|e| OhError::ParseError(e.to_string()))?;
+        let wrapper: GetEndeavorResponse =
+            serde_json::from_str(&body).map_err(|e| OhError::ParseError(format!("{}: {}", e, body)))?;
+
+        Ok(wrapper.endeavor)
+    }
+
+    /// Get recent logs for an endeavor
+    pub fn get_logs(&self, endeavor_id: &str, days: u32) -> Result<Vec<OhLogEntry>, OhError> {
+        let end_date = chrono::Utc::now().format("%Y-%m-%d").to_string();
+        let start_date = (chrono::Utc::now() - chrono::Duration::days(days as i64))
+            .format("%Y-%m-%d")
+            .to_string();
+
+        let url = format!(
+            "{}/api/logs?entity_type=endeavor&entity_id={}&start_date={}&end_date={}&limit=10",
+            self.config.api_url,
+            urlencoding::encode(endeavor_id),
+            urlencoding::encode(&start_date),
+            urlencoding::encode(&end_date)
+        );
+
+        let response = attohttpc::get(&url)
+            .header("Authorization", format!("Bearer {}", self.config.api_key))
+            .header("Content-Type", "application/json")
+            .timeout(std::time::Duration::from_secs(5))
+            .send()
+            .map_err(|e| OhError::RequestFailed(e.to_string()))?;
+
+        if !response.is_success() {
+            let status = response.status().as_u16();
+            let body = response.text().unwrap_or_default();
+            return Err(OhError::ApiError(status, body));
+        }
+
+        let body = response.text().map_err(|e| OhError::ParseError(e.to_string()))?;
+        let wrapper: GetLogsResponse =
+            serde_json::from_str(&body).map_err(|e| OhError::ParseError(format!("{}: {}", e, body)))?;
+
+        Ok(wrapper.logs)
+    }
 }
 
 /// Check if OH integration is available (env vars set)
@@ -297,6 +389,59 @@ impl OhIntegration {
     pub fn log_feedback(&self, feedback: &str) -> Result<String, OhError> {
         let content = format!("## Superego Feedback\n\n{}", feedback);
         self.client.log_decision(&self.endeavor_id, &content, None)
+    }
+
+    /// Get formatted endeavor context for evaluation
+    /// Returns empty string if fetching fails (graceful degradation)
+    pub fn get_endeavor_context(&self) -> String {
+        // Fetch endeavor details
+        let endeavor = match self.client.get_endeavor(&self.endeavor_id) {
+            Ok(e) => e,
+            Err(e) => {
+                eprintln!("Warning: failed to fetch OH endeavor: {}", e);
+                return String::new();
+            }
+        };
+
+        // Fetch recent logs (last 7 days)
+        let logs = match self.client.get_logs(&self.endeavor_id, 7) {
+            Ok(l) => l,
+            Err(e) => {
+                eprintln!("Warning: failed to fetch OH logs: {}", e);
+                Vec::new() // Continue with endeavor info even if logs fail
+            }
+        };
+
+        // Format context
+        let mut context = String::new();
+        context.push_str("--- OH ENDEAVOR CONTEXT ---\n");
+        context.push_str(&format!("ENDEAVOR: {} - {}\n", endeavor.id, endeavor.title));
+
+        if let Some(desc) = &endeavor.description {
+            if !desc.is_empty() {
+                context.push_str(&format!("DESCRIPTION: {}\n", desc));
+            }
+        }
+
+        if let Some(status) = &endeavor.status {
+            context.push_str(&format!("STATUS: {}\n", status));
+        }
+
+        if !logs.is_empty() {
+            context.push_str("\nRECENT LOGS:\n");
+            for log in logs.iter().take(5) {
+                // Truncate long content
+                let content = if log.content.len() > 200 {
+                    format!("{}...", &log.content[..200])
+                } else {
+                    log.content.clone()
+                };
+                context.push_str(&format!("- [{}] {}\n", log.log_date, content));
+            }
+        }
+
+        context.push_str("--- END OH CONTEXT ---\n\n");
+        context
     }
 }
 
@@ -372,5 +517,43 @@ mod tests {
         let content = "  oh_endeavor_id:   spaced-value  \n";
         let result = parse_config_for_endeavor_id(content);
         assert_eq!(result, Some("spaced-value".to_string()));
+    }
+
+    #[test]
+    fn test_parse_endeavor_response() {
+        let json = r#"{"endeavor":{"id":"test-123","title":"Test Endeavor","description":"A description","status":"active"}}"#;
+        let response: GetEndeavorResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(response.endeavor.id, "test-123");
+        assert_eq!(response.endeavor.title, "Test Endeavor");
+        assert_eq!(response.endeavor.description, Some("A description".to_string()));
+        assert_eq!(response.endeavor.status, Some("active".to_string()));
+    }
+
+    #[test]
+    fn test_parse_endeavor_response_minimal() {
+        let json = r#"{"endeavor":{"id":"min-id","title":"Minimal"}}"#;
+        let response: GetEndeavorResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(response.endeavor.id, "min-id");
+        assert_eq!(response.endeavor.title, "Minimal");
+        assert!(response.endeavor.description.is_none());
+        assert!(response.endeavor.status.is_none());
+    }
+
+    #[test]
+    fn test_parse_logs_response() {
+        let json = r#"{"logs":[{"id":"log-1","content":"First log","log_date":"2025-12-20"},{"id":"log-2","content":"Second log","log_date":"2025-12-19"}]}"#;
+        let response: GetLogsResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(response.logs.len(), 2);
+        assert_eq!(response.logs[0].id, "log-1");
+        assert_eq!(response.logs[0].content, "First log");
+        assert_eq!(response.logs[0].log_date, "2025-12-20");
+        assert_eq!(response.logs[1].log_date, "2025-12-19");
+    }
+
+    #[test]
+    fn test_parse_logs_response_empty() {
+        let json = r#"{"logs":[]}"#;
+        let response: GetLogsResponse = serde_json::from_str(json).unwrap();
+        assert!(response.logs.is_empty());
     }
 }
