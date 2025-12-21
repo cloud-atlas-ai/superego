@@ -91,6 +91,9 @@ enum Commands {
 
     /// Migrate from legacy hooks to plugin mode
     Migrate,
+
+    /// Evaluate the most recent Codex session (for Codex skill)
+    EvaluateCodex,
 }
 
 fn main() {
@@ -467,6 +470,49 @@ fn main() {
                 }
                 Err(e) => {
                     eprintln!("Migration failed: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
+        Commands::EvaluateCodex => {
+            let superego_dir = Path::new(".superego");
+
+            // Check if superego is initialized
+            if !superego_dir.exists() {
+                eprintln!("Superego not initialized. Run 'sg init' first.");
+                std::process::exit(1);
+            }
+
+            // Find the most recent Codex session
+            let session_path = match transcript::codex::find_latest_codex_session() {
+                Some(p) => p,
+                None => {
+                    eprintln!("No Codex sessions found in ~/.codex/sessions/");
+                    eprintln!("Make sure you have an active Codex session.");
+                    std::process::exit(1);
+                }
+            };
+
+            eprintln!("Evaluating: {}", session_path.display());
+
+            // Run LLM evaluation
+            match evaluate::evaluate_llm(&session_path, superego_dir, Some("codex")) {
+                Ok(result) => {
+                    // Output for skill/debugging
+                    println!(
+                        r#"{{"has_concerns": {}, "cost_usd": {:.6}}}"#,
+                        result.has_concerns, result.cost_usd
+                    );
+
+                    // Log feedback to stderr
+                    if result.has_concerns {
+                        eprintln!("Feedback:\n{}", result.feedback);
+                    } else {
+                        eprintln!("No concerns.");
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Evaluation failed: {}", e);
                     std::process::exit(1);
                 }
             }
