@@ -117,24 +117,33 @@ fn parse_decision_response(response: &str) -> (bool, String, Option<Confidence>)
             // Also strip trailing markdown (e.g., "DECISION:** ALLOW" → "ALLOW")
             let decision = decision_part.trim_start_matches('*').trim().to_uppercase();
 
-            // Check next line for optional CONFIDENCE:
-            let confidence = lines.get(idx + 1).and_then(|l| {
-                l.trim().strip_prefix("CONFIDENCE:").and_then(|c| {
-                    match c.trim().to_uppercase().as_str() {
-                        "HIGH" => Some(Confidence::High),
-                        "MEDIUM" => Some(Confidence::Medium),
-                        "LOW" => Some(Confidence::Low),
-                        _ => None,
+            // Search for optional CONFIDENCE: in next few lines (allows blank lines between)
+            let mut confidence: Option<Confidence> = None;
+            let mut confidence_line_idx: Option<usize> = None;
+            for offset in 1..=3 {
+                if let Some(l) = lines.get(idx + offset) {
+                    let trimmed = l.trim();
+                    if trimmed.is_empty() {
+                        continue; // Skip blank lines
                     }
-                })
-            });
+                    // First non-empty line: either CONFIDENCE or start of feedback
+                    if let Some(c) = trimmed.strip_prefix("CONFIDENCE:") {
+                        confidence = match c.trim().to_uppercase().as_str() {
+                            "HIGH" => Some(Confidence::High),
+                            "MEDIUM" => Some(Confidence::Medium),
+                            "LOW" => Some(Confidence::Low),
+                            _ => None,
+                        };
+                        if confidence.is_some() {
+                            confidence_line_idx = Some(idx + offset);
+                        }
+                    }
+                    break; // Stop at first non-empty line
+                }
+            }
 
-            // Extract feedback (skip CONFIDENCE line if present)
-            let start = if confidence.is_some() {
-                idx + 2
-            } else {
-                idx + 1
-            };
+            // Extract feedback (skip past CONFIDENCE line if found)
+            let start = confidence_line_idx.map_or(idx + 1, |ci| ci + 1);
             let feedback: String = lines[start..]
                 .iter()
                 .skip_while(|l| l.trim().is_empty())
@@ -409,12 +418,12 @@ mod tests {
     fn test_parse_decision_markdown_heading() {
         // LLMs often output "## DECISION: ALLOW" as a markdown heading
         let response = "## DECISION: ALLOW\n\nExcellent work on this implementation.";
-        let (has_concerns, feedback) = parse_decision_response(response);
+        let (has_concerns, feedback, _) = parse_decision_response(response);
         assert!(!has_concerns, "Should parse ALLOW despite ## prefix");
         assert_eq!(feedback, "Excellent work on this implementation.");
 
         let response = "## DECISION: BLOCK\n\nThis needs review.";
-        let (has_concerns, feedback) = parse_decision_response(response);
+        let (has_concerns, feedback, _) = parse_decision_response(response);
         assert!(has_concerns, "Should parse BLOCK despite ## prefix");
         assert_eq!(feedback, "This needs review.");
     }
@@ -423,7 +432,7 @@ mod tests {
     fn test_parse_decision_markdown_bold() {
         // Handle **DECISION:** format
         let response = "**DECISION:** ALLOW\n\nLooks good.";
-        let (has_concerns, feedback) = parse_decision_response(response);
+        let (has_concerns, feedback, _) = parse_decision_response(response);
         assert!(!has_concerns, "Should parse ALLOW despite ** prefix");
         assert_eq!(feedback, "Looks good.");
     }
@@ -432,9 +441,19 @@ mod tests {
     fn test_parse_decision_markdown_blockquote() {
         // Handle > DECISION: format
         let response = "> DECISION: ALLOW\n\nApproved.";
-        let (has_concerns, feedback) = parse_decision_response(response);
+        let (has_concerns, feedback, _) = parse_decision_response(response);
         assert!(!has_concerns, "Should parse ALLOW despite > prefix");
         assert_eq!(feedback, "Approved.");
+    }
+
+    #[test]
+    fn test_parse_decision_confidence_with_blank_line() {
+        // Allow blank lines between DECISION and CONFIDENCE
+        let response = "DECISION: BLOCK\n\nCONFIDENCE: MEDIUM\n\nNeeds review.";
+        let (has_concerns, feedback, confidence) = parse_decision_response(response);
+        assert!(has_concerns);
+        assert_eq!(feedback, "Needs review.");
+        assert_eq!(confidence, Some(Confidence::Medium));
     }
 
     #[test]
