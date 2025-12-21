@@ -9,6 +9,7 @@ use crate::bd;
 use crate::claude::{self, ClaudeOptions};
 use crate::decision::{Decision, Journal};
 use crate::feedback::{Feedback, FeedbackQueue};
+use crate::oh::OhIntegration;
 use crate::state::StateManager;
 use crate::transcript;
 
@@ -253,6 +254,13 @@ pub fn evaluate_llm(
             Decision::feedback_delivered(Some(response.session_id.clone()), feedback.clone());
         if let Err(e) = journal.write(&decision) {
             eprintln!("Warning: failed to write decision journal: {}", e);
+        }
+
+        // Log to Open Horizons if configured (optional integration)
+        if let Some(oh) = OhIntegration::new(superego_dir) {
+            if let Err(e) = oh.log_feedback(&feedback) {
+                eprintln!("Warning: failed to log to Open Horizons: {}", e);
+            }
         }
     }
 
