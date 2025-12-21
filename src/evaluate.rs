@@ -204,21 +204,38 @@ pub fn evaluate_llm(
     let state_mgr = StateManager::new(&session_dir);
     let state = state_mgr.load().unwrap_or_default();
 
-    // Load transcript
-    let entries = transcript::read_transcript(transcript_path)?;
+    // Auto-detect transcript format and load appropriately
+    let context = if transcript::codex::is_codex_format(transcript_path) {
+        // Codex format
+        let entries = transcript::codex::read_codex_transcript(transcript_path)?;
+        if entries.is_empty() {
+            return Ok(LlmEvaluationResult {
+                feedback: "No concerns.".to_string(),
+                has_concerns: false,
+                confidence: None,
+                cost_usd: 0.0,
+            });
+        }
+        transcript::codex::format_codex_context(&entries)
+    } else {
+        // Claude Code format
+        let entries = transcript::read_transcript(transcript_path)?;
 
-    // Get messages since last evaluation, filtered by session_id to prevent cross-session bleed
-    let messages = transcript::get_messages_since(&entries, state.last_evaluated, session_id);
+        // Get messages since last evaluation, filtered by session_id to prevent cross-session bleed
+        let messages = transcript::get_messages_since(&entries, state.last_evaluated, session_id);
 
-    // Skip if nothing new to evaluate
-    if messages.is_empty() {
-        return Ok(LlmEvaluationResult {
-            feedback: "No concerns.".to_string(),
-            has_concerns: false,
-            confidence: None,
-            cost_usd: 0.0,
-        });
-    }
+        // Skip if nothing new to evaluate
+        if messages.is_empty() {
+            return Ok(LlmEvaluationResult {
+                feedback: "No concerns.".to_string(),
+                has_concerns: false,
+                confidence: None,
+                cost_usd: 0.0,
+            });
+        }
+
+        transcript::format_context(&messages)
+    };
 
     // Load system prompt
     let prompt_path = superego_dir.join("prompt.md");
@@ -227,9 +244,6 @@ pub fn evaluate_llm(
     } else {
         include_str!("../default_prompt.md").to_string()
     };
-
-    // Format conversation context
-    let context = transcript::format_context(&messages);
 
     // Get bd task context (only include if there IS a task - for drift detection)
     let bd_context = match bd::evaluate() {
