@@ -141,6 +141,7 @@ impl OhClient {
         let response = attohttpc::get(&url)
             .header("Authorization", format!("Bearer {}", self.config.api_key))
             .header("Content-Type", "application/json")
+            .timeout(std::time::Duration::from_secs(5))
             .send()
             .map_err(|e| OhError::RequestFailed(e.to_string()))?;
 
@@ -178,6 +179,7 @@ impl OhClient {
         let response = attohttpc::get(&url)
             .header("Authorization", format!("Bearer {}", self.config.api_key))
             .header("Content-Type", "application/json")
+            .timeout(std::time::Duration::from_secs(5))
             .send()
             .map_err(|e| OhError::RequestFailed(e.to_string()))?;
 
@@ -235,6 +237,7 @@ impl OhClient {
         let response = attohttpc::post(&url)
             .header("Authorization", format!("Bearer {}", self.config.api_key))
             .header("Content-Type", "application/json")
+            .timeout(std::time::Duration::from_secs(5))
             .json(&request)
             .map_err(|e| OhError::RequestFailed(e.to_string()))?
             .send()
@@ -430,9 +433,9 @@ impl OhIntegration {
         if !logs.is_empty() {
             context.push_str("\nRECENT LOGS:\n");
             for log in logs.iter().take(5) {
-                // Truncate long content
-                let content = if log.content.len() > 200 {
-                    format!("{}...", &log.content[..200])
+                // Truncate long content (use chars() to avoid UTF-8 panic on multi-byte)
+                let content = if log.content.chars().count() > 200 {
+                    format!("{}...", log.content.chars().take(200).collect::<String>())
                 } else {
                     log.content.clone()
                 };
