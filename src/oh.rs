@@ -24,7 +24,8 @@ impl OhConfig {
     /// Returns None if OH_API_KEY is not set (OH_API_URL has default)
     pub fn from_env() -> Option<Self> {
         let api_key = env::var("OH_API_KEY").ok()?;
-        let api_url = env::var("OH_API_URL").unwrap_or_else(|_| "http://localhost:3001".to_string());
+        let api_url =
+            env::var("OH_API_URL").unwrap_or_else(|_| "http://localhost:3001".to_string());
         Some(OhConfig { api_url, api_key })
     }
 }
@@ -152,7 +153,9 @@ impl OhClient {
         }
 
         // OH returns { contexts: [...] } or just [...]
-        let body = response.text().map_err(|e| OhError::ParseError(e.to_string()))?;
+        let body = response
+            .text()
+            .map_err(|e| OhError::ParseError(e.to_string()))?;
 
         // Try parsing as { contexts: [...] } first
         #[derive(Deserialize)]
@@ -189,7 +192,9 @@ impl OhClient {
             return Err(OhError::ApiError(status, body));
         }
 
-        let body = response.text().map_err(|e| OhError::ParseError(e.to_string()))?;
+        let body = response
+            .text()
+            .map_err(|e| OhError::ParseError(e.to_string()))?;
 
         // Dashboard returns { nodes: [...] }
         #[derive(Deserialize)]
@@ -249,9 +254,11 @@ impl OhClient {
             return Err(OhError::ApiError(status, body));
         }
 
-        let body = response.text().map_err(|e| OhError::ParseError(e.to_string()))?;
-        let log_response: LogResponse =
-            serde_json::from_str(&body).map_err(|e| OhError::ParseError(format!("{}: {}", e, body)))?;
+        let body = response
+            .text()
+            .map_err(|e| OhError::ParseError(e.to_string()))?;
+        let log_response: LogResponse = serde_json::from_str(&body)
+            .map_err(|e| OhError::ParseError(format!("{}: {}", e, body)))?;
 
         Ok(log_response
             .log
@@ -280,9 +287,11 @@ impl OhClient {
             return Err(OhError::ApiError(status, body));
         }
 
-        let body = response.text().map_err(|e| OhError::ParseError(e.to_string()))?;
-        let wrapper: GetEndeavorResponse =
-            serde_json::from_str(&body).map_err(|e| OhError::ParseError(format!("{}: {}", e, body)))?;
+        let body = response
+            .text()
+            .map_err(|e| OhError::ParseError(e.to_string()))?;
+        let wrapper: GetEndeavorResponse = serde_json::from_str(&body)
+            .map_err(|e| OhError::ParseError(format!("{}: {}", e, body)))?;
 
         Ok(wrapper.endeavor)
     }
@@ -315,9 +324,11 @@ impl OhClient {
             return Err(OhError::ApiError(status, body));
         }
 
-        let body = response.text().map_err(|e| OhError::ParseError(e.to_string()))?;
-        let wrapper: GetLogsResponse =
-            serde_json::from_str(&body).map_err(|e| OhError::ParseError(format!("{}: {}", e, body)))?;
+        let body = response
+            .text()
+            .map_err(|e| OhError::ParseError(e.to_string()))?;
+        let wrapper: GetLogsResponse = serde_json::from_str(&body)
+            .map_err(|e| OhError::ParseError(format!("{}: {}", e, body)))?;
 
         Ok(wrapper.logs)
     }
@@ -385,7 +396,10 @@ impl OhIntegration {
     pub fn new(superego_dir: &Path) -> Option<Self> {
         let client = OhClient::new().ok()?;
         let endeavor_id = get_endeavor_id(superego_dir)?;
-        Some(OhIntegration { client, endeavor_id })
+        Some(OhIntegration {
+            client,
+            endeavor_id,
+        })
     }
 
     /// Log superego feedback to the configured endeavor
@@ -528,7 +542,10 @@ mod tests {
         let response: GetEndeavorResponse = serde_json::from_str(json).unwrap();
         assert_eq!(response.endeavor.id, "test-123");
         assert_eq!(response.endeavor.title, "Test Endeavor");
-        assert_eq!(response.endeavor.description, Some("A description".to_string()));
+        assert_eq!(
+            response.endeavor.description,
+            Some("A description".to_string())
+        );
         assert_eq!(response.endeavor.status, Some("active".to_string()));
     }
 
