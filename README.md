@@ -82,7 +82,7 @@ curl -L -o .opencode/plugin/superego.js \
 
 # 2. Start OpenCode and initialize
 opencode
-# Ask: "use superego init"
+# Ask: "use the superego tool with the 'init' command"
 ```
 
 Or install globally:
@@ -109,8 +109,6 @@ curl -L -o ~/.codex/skills/superego/SKILL.md \
 ```
 
 The `$superego init` command installs the binary, creates `.superego/`, and adds AGENTS.md guidance automatically.
-
-After setup, the agent calls `$superego` at decision points to evaluate the conversation.
 
 See [codex-skill/](codex-skill/) for details.
 
