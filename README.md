@@ -4,6 +4,7 @@ A metacognitive advisor for AI coding assistants. Monitors conversations, evalua
 
 **Supported platforms:**
 - **Claude Code** - Full support via plugin
+- **OpenAI Codex CLI** - Alpha support via skill (see [codex-skill/](codex-skill/))
 - **OpenCode** - Alpha support via TypeScript plugin (see [opencode-plugin/](opencode-plugin/))
 
 ## What It Does
@@ -92,6 +93,26 @@ curl -L -o ~/.config/opencode/plugin/superego.js \
 ```
 
 See [opencode-plugin/README.md](opencode-plugin/README.md) for build-from-source instructions and detailed configuration.
+
+## Quickstart: OpenAI Codex CLI (Alpha)
+
+Codex support uses a skill that the agent can invoke at decision points.
+
+```bash
+# 1. Install the skill
+mkdir -p ~/.codex/skills/superego
+curl -L -o ~/.codex/skills/superego/SKILL.md \
+  https://raw.githubusercontent.com/cloud-atlas-ai/superego/main/codex-skill/SKILL.md
+
+# 2. In Codex, ask the agent to set up:
+#    "$superego init"
+```
+
+The `$superego init` command installs the binary, creates `.superego/`, and adds AGENTS.md guidance automatically.
+
+After setup, the agent calls `$superego` at decision points to evaluate the conversation.
+
+See [codex-skill/](codex-skill/) for details.
 
 ## What You'll See
 

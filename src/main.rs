@@ -4,6 +4,7 @@ use std::path::Path;
 mod audit;
 mod bd;
 mod claude;
+mod codex_llm;
 mod decision;
 mod evaluate;
 mod feedback;
@@ -91,6 +92,9 @@ enum Commands {
 
     /// Migrate from legacy hooks to plugin mode
     Migrate,
+
+    /// Evaluate the most recent Codex session (for Codex skill)
+    EvaluateCodex,
 }
 
 fn main() {
@@ -467,6 +471,181 @@ fn main() {
                 }
                 Err(e) => {
                     eprintln!("Migration failed: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
+        Commands::EvaluateCodex => {
+            let superego_dir = Path::new(".superego");
+
+            // Log to .superego/codex.log
+            let log = |msg: &str| {
+                let log_path = superego_dir.join("codex.log");
+                let timestamp = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ");
+                let line = format!("{} {}\n", timestamp, msg);
+                let _ = std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(&log_path)
+                    .and_then(|mut f| std::io::Write::write_all(&mut f, line.as_bytes()));
+            };
+
+            // Recursion prevention - skip if this is superego's own Codex call
+            if std::env::var("SUPEREGO_DISABLED").as_deref() == Ok("1") {
+                log("SKIP: SUPEREGO_DISABLED=1");
+                println!(
+                    r#"{{"has_concerns": false, "skipped": true, "reason": "recursion_prevention"}}"#
+                );
+                return;
+            }
+
+            log("evaluate-codex started");
+
+            // Check if superego is initialized
+            if !superego_dir.exists() {
+                log("ERROR: .superego not initialized");
+                eprintln!("Superego not initialized. Run 'sg init' first.");
+                std::process::exit(1);
+            }
+
+            // Check for lock file to prevent concurrent evals
+            let lock_path = superego_dir.join("codex.lock");
+            // Match codex exec timeout (3 min) - locks older than this are from crashed processes
+            let lock_timeout = std::time::Duration::from_secs(180);
+
+            if lock_path.exists() {
+                if let Ok(meta) = lock_path.metadata() {
+                    if let Ok(modified) = meta.modified() {
+                        if modified.elapsed().unwrap_or(lock_timeout) < lock_timeout {
+                            log("SKIP: Another evaluation in progress (lock file exists)");
+                            eprintln!("Another evaluation in progress. Skipping.");
+                            println!(r#"{{"has_concerns": false, "skipped": true}}"#);
+                            return;
+                        }
+                    }
+                }
+                // Lock is >3min old - probably a crash, safe to remove
+                log("Removing stale lock (>3min old)");
+                let _ = std::fs::remove_file(&lock_path);
+            }
+
+            // Create lock file
+            if let Err(e) = std::fs::write(&lock_path, chrono::Utc::now().to_rfc3339()) {
+                log(&format!("WARN: Could not create lock file: {}", e));
+            }
+
+            // Ensure lock is removed on exit (scope guard)
+            struct LockGuard<'a>(&'a Path);
+            impl<'a> Drop for LockGuard<'a> {
+                fn drop(&mut self) {
+                    let _ = std::fs::remove_file(self.0);
+                }
+            }
+            let _lock_guard = LockGuard(&lock_path);
+
+            // Find the most recent Codex session
+            let session_path = match transcript::codex::find_latest_codex_session() {
+                Some(p) => p,
+                None => {
+                    log("ERROR: No Codex sessions found");
+                    eprintln!("No Codex sessions found in ~/.codex/sessions/");
+                    eprintln!("Make sure you have an active Codex session.");
+                    std::process::exit(1);
+                }
+            };
+
+            // Log just the filename, not full path
+            let session_name = session_path
+                .file_name()
+                .map(|s| s.to_string_lossy().to_string())
+                .unwrap_or_else(|| session_path.display().to_string());
+            log(&format!("Session: {}", session_name));
+            eprintln!("Evaluating: {}", session_path.display());
+
+            // Read and format transcript
+            let entries = match transcript::codex::read_codex_transcript(&session_path) {
+                Ok(e) => e,
+                Err(e) => {
+                    log(&format!("ERROR reading transcript: {}", e));
+                    eprintln!("Failed to read transcript: {}", e);
+                    std::process::exit(1);
+                }
+            };
+
+            if entries.is_empty() {
+                log("No entries in transcript");
+                println!(r#"{{"has_concerns": false, "tokens": 0}}"#);
+                eprintln!("No concerns.");
+                return;
+            }
+
+            let context = transcript::codex::format_codex_context(&entries);
+            let context_kb = context.len() / 1024;
+            log(&format!(
+                "Context: {} entries, {}KB",
+                entries.len(),
+                context_kb
+            ));
+
+            // Load system prompt
+            let prompt_path = superego_dir.join("prompt.md");
+            let system_prompt = if prompt_path.exists() {
+                std::fs::read_to_string(&prompt_path)
+                    .unwrap_or_else(|_| include_str!("../default_prompt.md").to_string())
+            } else {
+                include_str!("../default_prompt.md").to_string()
+            };
+
+            let message = format!(
+                "Review the following Codex conversation and provide feedback.\n\n\
+                --- CONVERSATION ---\n{}\n--- END CONVERSATION ---",
+                context
+            );
+
+            log("Calling Codex LLM...");
+            let start_time = std::time::Instant::now();
+
+            // Use Codex LLM (not Claude) for evaluation
+            match codex_llm::invoke(&system_prompt, &message, None) {
+                Ok(response) => {
+                    let elapsed = start_time.elapsed().as_secs_f32();
+                    log(&format!(
+                        "Response in {:.1}s, tokens={}",
+                        elapsed, response.total_tokens
+                    ));
+
+                    // Parse decision from response
+                    let has_concerns = !response.result.contains("DECISION: ALLOW");
+
+                    println!(
+                        r#"{{"has_concerns": {}, "tokens": {}}}"#,
+                        has_concerns, response.total_tokens
+                    );
+
+                    if has_concerns {
+                        log("BLOCK - concerns found");
+                        eprintln!("Feedback:\n{}", response.result);
+                    } else {
+                        log("ALLOW - no concerns");
+                        eprintln!("No concerns.");
+                    }
+                }
+                Err(codex_llm::CodexLlmError::RateLimited { resets_in_seconds }) => {
+                    let msg = if let Some(secs) = resets_in_seconds {
+                        format!("SKIP: Rate limited (resets in {} min)", secs / 60)
+                    } else {
+                        "SKIP: Rate limited".to_string()
+                    };
+                    log(&msg);
+                    eprintln!("{}", msg);
+                    println!(
+                        r#"{{"has_concerns": false, "skipped": true, "reason": "rate_limited"}}"#
+                    );
+                    // Don't exit with error - this is expected behavior
+                }
+                Err(e) => {
+                    log(&format!("ERROR: {}", e));
+                    eprintln!("Evaluation failed: {}", e);
                     std::process::exit(1);
                 }
             }
