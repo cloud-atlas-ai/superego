@@ -493,7 +493,9 @@ fn main() {
             // Recursion prevention - skip if this is superego's own Codex call
             if std::env::var("SUPEREGO_DISABLED").as_deref() == Ok("1") {
                 log("SKIP: SUPEREGO_DISABLED=1");
-                println!(r#"{{"has_concerns": false, "skipped": true, "reason": "recursion_prevention"}}"#);
+                println!(
+                    r#"{{"has_concerns": false, "skipped": true, "reason": "recursion_prevention"}}"#
+                );
                 return;
             }
 
