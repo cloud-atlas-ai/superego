@@ -70,7 +70,19 @@ pub fn init_at(base_dir: &Path, force: bool) -> Result<(), InitError> {
     // Create config with defaults
     fs::write(
         superego_dir.join("config.yaml"),
-        "# Superego configuration\neval_interval_minutes: 5  # Periodic eval to catch drift\n# model: claude-sonnet-4-20250514\n# timeout_ms: 30000\n",
+        r#"# Superego configuration
+
+# Periodic evaluation interval (minutes)
+eval_interval_minutes: 5
+
+# Carryover context settings (for continuity between evaluations)
+# carryover_decision_count: 2    # Number of recent decisions to include
+# carryover_window_minutes: 5    # Minutes of recent messages before current window
+
+# Model and timeout (uncomment to override)
+# model: claude-sonnet-4-20250514
+# timeout_ms: 30000
+"#,
     )?;
 
     // Update .gitignore

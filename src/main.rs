@@ -5,6 +5,7 @@ mod audit;
 mod bd;
 mod claude;
 mod codex_llm;
+mod config;
 mod decision;
 mod evaluate;
 mod feedback;

@@ -9,6 +9,7 @@ use chrono::Duration;
 
 use crate::bd;
 use crate::claude::{self, ClaudeOptions};
+use crate::config::Config;
 use crate::decision::{Decision, DecisionType, Journal};
 use crate::feedback::{Feedback, FeedbackQueue};
 use crate::oh::OhIntegration;
@@ -245,21 +246,24 @@ pub fn evaluate_llm(
         transcript::format_context(&messages)
     };
 
+    // Load config for carryover settings
+    let config = Config::load(superego_dir);
+
     // Build carryover context for continuity (replaces session resumption)
     // AIDEV-NOTE: Instead of resuming Claude sessions (which accumulates unbounded context),
-    // we provide explicit carryover: last 2 decisions + last 5 minutes of messages before
-    // the current evaluation window.
+    // we provide explicit carryover: recent decisions + recent messages before
+    // the current evaluation window. Counts configurable in config.yaml.
     let carryover_context = {
         let mut parts = Vec::new();
 
-        // Get last 2 decisions from journal (sorted oldest first, so reverse and take 2)
+        // Get recent decisions from journal (sorted oldest first, so reverse and take N)
         let journal = Journal::new(&session_dir);
         if let Ok(decisions) = journal.read_all() {
             let recent: Vec<_> = decisions
                 .iter()
                 .rev()
                 .filter(|d| d.decision_type == DecisionType::FeedbackDelivered)
-                .take(2)
+                .take(config.carryover_decision_count)
                 .collect();
             
             if !recent.is_empty() {
@@ -272,9 +276,9 @@ pub fn evaluate_llm(
             }
         }
 
-        // Get messages from 5 minutes before last_evaluated (if we have a cutoff)
+        // Get messages from N minutes before last_evaluated (if we have a cutoff)
         if let Some(cutoff) = state.last_evaluated {
-            let window_start = cutoff - Duration::minutes(5);
+            let window_start = cutoff - Duration::minutes(config.carryover_window_minutes);
             // Read transcript into a binding so it lives long enough
             let transcript_entries = transcript::read_transcript(transcript_path).unwrap_or_default();
             let recent_messages = transcript::get_messages_in_window(
