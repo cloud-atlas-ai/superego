@@ -57,6 +57,37 @@ pub fn read_transcript(path: &Path) -> Result<Vec<TranscriptEntry>, TranscriptEr
     Ok(entries)
 }
 
+/// Get messages in a time window, optionally filtered by session
+/// AIDEV-NOTE: Used for carryover context - get messages from a time range
+/// (e.g., last 5 minutes before current evaluation window).
+pub fn get_messages_in_window<'a>(
+    entries: &'a [TranscriptEntry],
+    start: DateTime<Utc>,
+    end: DateTime<Utc>,
+    session_id: Option<&str>,
+) -> Vec<&'a TranscriptEntry> {
+    let session_filter = |e: &&TranscriptEntry| -> bool {
+        match session_id {
+            Some(sid) => e.session_id() == Some(sid),
+            None => true,
+        }
+    };
+
+    let content_filter = |e: &&TranscriptEntry| e.is_message() || e.is_summary();
+
+    entries
+        .iter()
+        .filter(content_filter)
+        .filter(session_filter)
+        .filter(|e| {
+            e.timestamp()
+                .and_then(|ts| DateTime::parse_from_rfc3339(ts).ok())
+                .map(|ts| ts >= start && ts < end)
+                .unwrap_or(false)
+        })
+        .collect()
+}
+
 /// Get messages since a given timestamp, optionally filtered by session
 /// AIDEV-NOTE: This is the primary context selection method. We evaluate
 /// everything new since the last evaluation, not an arbitrary window.

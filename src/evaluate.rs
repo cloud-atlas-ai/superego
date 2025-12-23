@@ -5,9 +5,11 @@
 use std::fs;
 use std::path::Path;
 
+use chrono::Duration;
+
 use crate::bd;
 use crate::claude::{self, ClaudeOptions};
-use crate::decision::{Decision, Journal};
+use crate::decision::{Decision, DecisionType, Journal};
 use crate::feedback::{Feedback, FeedbackQueue};
 use crate::oh::OhIntegration;
 use crate::state::StateManager;
@@ -243,6 +245,70 @@ pub fn evaluate_llm(
         transcript::format_context(&messages)
     };
 
+    // Build carryover context for continuity (replaces session resumption)
+    // AIDEV-NOTE: Instead of resuming Claude sessions (which accumulates unbounded context),
+    // we provide explicit carryover: last 2 decisions + last 5 minutes of messages before
+    // the current evaluation window.
+    let carryover_context = {
+        let mut parts = Vec::new();
+
+        // Get last 2 decisions from journal (sorted oldest first, so reverse and take 2)
+        let journal = Journal::new(&session_dir);
+        if let Ok(decisions) = journal.read_all() {
+            let recent: Vec<_> = decisions
+                .iter()
+                .rev()
+                .filter(|d| d.decision_type == DecisionType::FeedbackDelivered)
+                .take(2)
+                .collect();
+            
+            if !recent.is_empty() {
+                parts.push("Recent superego decisions:".to_string());
+                for d in recent.iter().rev() {
+                    // Show timestamp and truncated feedback
+                    let feedback = d.context.as_deref().unwrap_or("(no context)");
+                    let truncated = if feedback.len() > 200 {
+                        format!("{}...", &feedback[..200])
+                    } else {
+                        feedback.to_string()
+                    };
+                    parts.push(format!("- [{}]: {}", d.timestamp.format("%H:%M:%S"), truncated));
+                }
+                parts.push(String::new()); // blank line
+            }
+        }
+
+        // Get messages from 5 minutes before last_evaluated (if we have a cutoff)
+        if let Some(cutoff) = state.last_evaluated {
+            let window_start = cutoff - Duration::minutes(5);
+            // Read transcript into a binding so it lives long enough
+            let transcript_entries = transcript::read_transcript(transcript_path).unwrap_or_default();
+            let recent_messages = transcript::get_messages_in_window(
+                &transcript_entries,
+                window_start,
+                cutoff,
+                session_id,
+            );
+            
+            if !recent_messages.is_empty() {
+                parts.push("Recent activity (before current evaluation window):".to_string());
+                let formatted = transcript::format_context(&recent_messages);
+                // Truncate if too long
+                if formatted.len() > 2000 {
+                    parts.push(format!("{}...(truncated)", &formatted[..2000]));
+                } else {
+                    parts.push(formatted);
+                }
+            }
+        }
+
+        if parts.is_empty() {
+            String::new()
+        } else {
+            format!("--- PREVIOUS CONTEXT ---\n{}\n--- END PREVIOUS CONTEXT ---\n\n", parts.join("\n"))
+        }
+    };
+
     // Load system prompt
     let prompt_path = superego_dir.join("prompt.md");
     let system_prompt = if prompt_path.exists() {
@@ -285,33 +351,27 @@ pub fn evaluate_llm(
         String::new()
     };
 
-    // Build message for superego - include bd context, OH context, and pending change
+    // Build message for superego - include carryover, bd context, OH context, and pending change
+    // AIDEV-NOTE: carryover_context provides continuity without session resumption
     let message = format!(
         "Review the following Claude Code conversation and provide feedback.\n\n\
-        {}{}--- CONVERSATION ---\n\
+        {}{}{}--- CONVERSATION ---\n\
         {}\n\
         --- END CONVERSATION ---{}",
-        bd_context, oh_context, context, pending_context
+        carryover_context, bd_context, oh_context, context, pending_context
     );
 
-    // Load superego session ID if available (session-namespaced)
-    let superego_session_path = session_dir.join("superego_session");
-    let superego_session_id = fs::read_to_string(&superego_session_path).ok();
-
-    // Call Claude (timeout_ms: None uses default 5 minutes)
+    // Call Claude - each evaluation is isolated (no session resumption)
+    // AIDEV-NOTE: Session resumption was removed because it accumulates context unboundedly,
+    // eventually causing "Prompt is too long" errors. Carryover context provides continuity instead.
     let options = ClaudeOptions {
-        model: Some("sonnet".to_string()),
-        session_id: superego_session_id.clone(),
-        no_session_persistence: false,
+        model: None,
+        session_id: None, // No resumption - isolated evaluations
+        no_session_persistence: true,
         timeout_ms: None,
     };
 
     let response = claude::invoke(&system_prompt, &message, options)?;
-
-    // Save superego session ID for next time (session-namespaced)
-    if response.session_id != superego_session_id.unwrap_or_default() {
-        fs::write(&superego_session_path, &response.session_id)?;
-    }
 
     // Update last_evaluated to transcript read time (not completion time!)
     // This ensures messages written during LLM eval are caught next time.
