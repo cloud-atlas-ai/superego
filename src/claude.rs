@@ -132,7 +132,7 @@ pub fn invoke(
                 let output = child.wait_with_output()?;
                 let stdout = String::from_utf8_lossy(&output.stdout);
                 let stderr = String::from_utf8_lossy(&output.stderr);
-                
+
                 if !status.success() {
                     // Claude CLI returns errors in JSON stdout with is_error: true
                     // Try to parse stdout to get a more helpful error message
@@ -142,10 +142,10 @@ pub fn invoke(
                         }
                     }
                     // Fall back to stderr if we can't parse stdout
-                    let error_msg = if stderr.is_empty() { 
-                        stdout.to_string() 
-                    } else { 
-                        stderr.to_string() 
+                    let error_msg = if stderr.is_empty() {
+                        stdout.to_string()
+                    } else {
+                        stderr.to_string()
                     };
                     return Err(ClaudeError::CommandFailed(error_msg));
                 }

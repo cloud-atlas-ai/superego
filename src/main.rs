@@ -693,7 +693,14 @@ fn main() {
 
             // Default is curated mode; --full disables curation
             let curated = !full;
-            match retro::run(superego_dir, session.as_deref(), curated, &output, open, push_oh) {
+            match retro::run(
+                superego_dir,
+                session.as_deref(),
+                curated,
+                &output,
+                open,
+                push_oh,
+            ) {
                 Ok(()) => {}
                 Err(e) => {
                     eprintln!("Retro failed: {}", e);

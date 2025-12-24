@@ -226,7 +226,10 @@ pub fn evaluate_llm(
                 cost_usd: 0.0,
             });
         }
-        (transcript::codex::format_codex_context(&entries), Vec::new())
+        (
+            transcript::codex::format_codex_context(&entries),
+            Vec::new(),
+        )
     } else {
         // Claude Code format
         let entries = transcript::read_transcript(transcript_path)?;
@@ -266,12 +269,16 @@ pub fn evaluate_llm(
                 .filter(|d| d.decision_type == DecisionType::FeedbackDelivered)
                 .take(config.carryover_decision_count)
                 .collect();
-            
+
             if !recent.is_empty() {
                 parts.push("Recent superego decisions:".to_string());
                 for d in recent.iter().rev() {
                     let feedback = d.context.as_deref().unwrap_or("(no context)");
-                    parts.push(format!("- [{}]: {}", d.timestamp.format("%H:%M:%S"), feedback));
+                    parts.push(format!(
+                        "- [{}]: {}",
+                        d.timestamp.format("%H:%M:%S"),
+                        feedback
+                    ));
                 }
                 parts.push(String::new()); // blank line
             }
@@ -287,7 +294,7 @@ pub fn evaluate_llm(
                 cutoff,
                 session_id,
             );
-            
+
             if !recent_messages.is_empty() {
                 parts.push("Recent activity (before current evaluation window):".to_string());
                 parts.push(transcript::format_context(&recent_messages));
@@ -297,7 +304,10 @@ pub fn evaluate_llm(
         if parts.is_empty() {
             String::new()
         } else {
-            format!("--- PREVIOUS CONTEXT ---\n{}\n--- END PREVIOUS CONTEXT ---\n\n", parts.join("\n"))
+            format!(
+                "--- PREVIOUS CONTEXT ---\n{}\n--- END PREVIOUS CONTEXT ---\n\n",
+                parts.join("\n")
+            )
         }
     };
 

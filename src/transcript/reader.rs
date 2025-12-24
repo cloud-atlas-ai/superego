@@ -467,7 +467,9 @@ mod tests {
         ];
 
         let start = chrono::Utc.with_ymd_and_hms(2025, 1, 15, 10, 0, 0).unwrap();
-        let end = chrono::Utc.with_ymd_and_hms(2025, 1, 15, 10, 10, 0).unwrap();
+        let end = chrono::Utc
+            .with_ymd_and_hms(2025, 1, 15, 10, 10, 0)
+            .unwrap();
 
         // Filter by session s1
         let result = get_messages_in_window(&entries, start, end, Some("s1"));
@@ -499,7 +501,9 @@ mod tests {
         ];
 
         let start = chrono::Utc.with_ymd_and_hms(2025, 1, 15, 10, 0, 0).unwrap();
-        let end = chrono::Utc.with_ymd_and_hms(2025, 1, 15, 10, 10, 0).unwrap();
+        let end = chrono::Utc
+            .with_ymd_and_hms(2025, 1, 15, 10, 10, 0)
+            .unwrap();
 
         let result = get_messages_in_window(&entries, start, end, Some("s1"));
         assert_eq!(result.len(), 1, "Should include start, exclude end");
