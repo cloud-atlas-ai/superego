@@ -57,7 +57,6 @@ const DEFAULT_TIMEOUT_MS: u64 = 300_000;
 /// Options for Claude invocation
 #[derive(Debug, Clone, Default)]
 pub struct ClaudeOptions {
-    /// Model to use (default: sonnet)
     pub model: Option<String>,
     /// Session ID for continuation
     pub session_id: Option<String>,
@@ -93,9 +92,9 @@ pub fn invoke(
     // System prompt
     cmd.arg("--system-prompt").arg(system_prompt);
 
-    // Model (default to sonnet for cost efficiency)
-    let model = options.model.unwrap_or_else(|| "sonnet".to_string());
-    cmd.arg("--model").arg(&model);
+    if let Some(model) = options.model {
+        cmd.arg("--model").arg(model);
+    }
 
     // Session handling
     if let Some(session_id) = &options.session_id {

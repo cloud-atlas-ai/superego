@@ -13,6 +13,7 @@ mod hooks;
 mod init;
 mod migrate;
 mod oh;
+mod retro;
 mod state;
 mod transcript;
 
@@ -98,6 +99,25 @@ enum Commands {
 
     /// Evaluate the most recent Codex session (for Codex skill)
     EvaluateCodex,
+
+    /// Generate HTML retrospective visualization of a session
+    Retro {
+        /// Session ID (defaults to latest)
+        #[arg(long)]
+        session: Option<String>,
+
+        /// Show all decisions instead of LLM-curated key moments
+        #[arg(long)]
+        full: bool,
+
+        /// Output file path
+        #[arg(long, default_value = "retro.html")]
+        output: std::path::PathBuf,
+
+        /// Open in browser after generating
+        #[arg(long)]
+        open: bool,
+    },
 }
 
 fn main() {
@@ -649,6 +669,29 @@ fn main() {
                 Err(e) => {
                     log(&format!("ERROR: {}", e));
                     eprintln!("Evaluation failed: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
+        Commands::Retro {
+            session,
+            full,
+            output,
+            open,
+        } => {
+            let superego_dir = Path::new(".superego");
+
+            if !superego_dir.exists() {
+                eprintln!("No .superego directory found. Run 'sg init' first.");
+                std::process::exit(1);
+            }
+
+            // Default is curated mode; --full disables curation
+            let curated = !full;
+            match retro::run(superego_dir, session.as_deref(), curated, &output, open) {
+                Ok(()) => {}
+                Err(e) => {
+                    eprintln!("Retro failed: {}", e);
                     std::process::exit(1);
                 }
             }

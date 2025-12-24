@@ -402,7 +402,7 @@ mod tests {
 
     #[test]
     fn test_parse_config_returns_none_when_missing() {
-        let content = "eval_interval_minutes: 5\nmodel: sonnet";
+        let content = "eval_interval_minutes: 5\nmodel: opus";
         let result = parse_config_for_endeavor_id(content);
         assert!(result.is_none());
     }

@@ -80,7 +80,7 @@ eval_interval_minutes: 5
 # carryover_window_minutes: 5    # Minutes of recent messages before current window
 
 # Model and timeout (uncomment to override)
-# model: claude-sonnet-4-20250514
+# model: opus
 # timeout_ms: 30000
 "#,
     )?;
