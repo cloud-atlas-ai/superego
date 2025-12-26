@@ -34,6 +34,27 @@ This creates feedback loops where Claude can course-correct both during work and
 
 The `/superego:init` command detects if the binary is missing and offers to install it via Homebrew or Cargo.
 
+### Level Up: Strategic Alignment with Open Horizons
+
+Superego provides metacognitive feedback—but feedback without strategic context is incomplete. For the full power of aligned AI development, combine superego with **[Open Horizons MCP](https://github.com/cloud-atlas-ai/oh-mcp-server)**:
+
+```bash
+# Add OH MCP marketplace
+/plugin marketplace add cloud-atlas-ai/oh-mcp-server
+/plugin install oh-mcp@oh-mcp-server
+
+# Configure
+/oh-mcp:setup
+```
+
+**What you get:**
+- Superego monitors *how* Claude works (metacognitive feedback)
+- OH MCP connects *why* Claude works (strategic alignment)
+- Every decision traces back to your missions and aims
+- Claude logs decisions directly to your strategic framework
+
+Learn more: [OH MCP Server](https://github.com/cloud-atlas-ai/oh-mcp-server) | [Open Horizons](https://app.openhorizons.me)
+
 ### Slash Commands
 
 | Command | Description |
