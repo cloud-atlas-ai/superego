@@ -14,6 +14,7 @@ mod init;
 mod migrate;
 mod oh;
 mod retro;
+mod setup_oh;
 mod state;
 mod transcript;
 
@@ -96,6 +97,9 @@ enum Commands {
 
     /// Migrate from legacy hooks to plugin mode
     Migrate,
+
+    /// Set up Open Horizons integration interactively
+    SetupOh,
 
     /// Evaluate the most recent Codex session (for Codex skill)
     EvaluateCodex,
@@ -500,6 +504,12 @@ fn main() {
                     eprintln!("Migration failed: {}", e);
                     std::process::exit(1);
                 }
+            }
+        }
+        Commands::SetupOh => {
+            if let Err(e) = setup_oh::run() {
+                eprintln!("Setup failed: {}", e);
+                std::process::exit(1);
             }
         }
         Commands::EvaluateCodex => {

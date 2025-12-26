@@ -25,27 +25,57 @@ impl OhConfig {
     pub fn from_env() -> Option<Self> {
         let api_key = env::var("OH_API_KEY").ok()?;
         let api_url =
-            env::var("OH_API_URL").unwrap_or_else(|_| "http://localhost:3001".to_string());
+            env::var("OH_API_URL").unwrap_or_else(|_| "https://app.openhorizons.me".to_string());
+        Some(OhConfig { api_url, api_key })
+    }
+
+    /// Try to load configuration from global config file
+    /// Path: ~/.config/openhorizons/config.json
+    pub fn from_global_config() -> Option<Self> {
+        let home = env::var("HOME").ok()?;
+        let config_path = Path::new(&home)
+            .join(".config")
+            .join("openhorizons")
+            .join("config.json");
+
+        if !config_path.exists() {
+            return None;
+        }
+
+        let content = fs::read_to_string(&config_path).ok()?;
+        let json: serde_json::Value = serde_json::from_str(&content).ok()?;
+
+        let api_key = json.get("api_key")?.as_str()?.to_string();
+        let api_url = json
+            .get("api_url")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| "https://app.openhorizons.me".to_string());
+
         Some(OhConfig { api_url, api_key })
     }
 
     /// Try to load configuration from .superego/config.yaml
-    /// Priority: env vars override config file values
+    /// Priority: env vars > project config > global config
     pub fn from_config(superego_dir: &Path) -> Option<Self> {
+        // First, check env vars
+        if let Some(config) = Self::from_env() {
+            return Some(config);
+        }
+
+        // Then check project config.yaml
         let config_path = superego_dir.join("config.yaml");
-        let content = fs::read_to_string(&config_path).ok()?;
+        if let Ok(content) = fs::read_to_string(&config_path) {
+            // Parse oh_api_key and oh_api_url from config
+            if let Some(api_key) = parse_config_value(&content, "oh_api_key") {
+                let api_url = parse_config_value(&content, "oh_api_url")
+                    .unwrap_or_else(|| "https://app.openhorizons.me".to_string());
+                return Some(OhConfig { api_url, api_key });
+            }
+        }
 
-        // Parse oh_api_key and oh_api_url from config (env vars override)
-        let api_key = env::var("OH_API_KEY")
-            .ok()
-            .or_else(|| parse_config_value(&content, "oh_api_key"))?;
-
-        let api_url = env::var("OH_API_URL")
-            .ok()
-            .or_else(|| parse_config_value(&content, "oh_api_url"))
-            .unwrap_or_else(|| "http://localhost:3001".to_string());
-
-        Some(OhConfig { api_url, api_key })
+        // Finally, check global config (~/.config/openhorizons/config.json)
+        Self::from_global_config()
     }
 }
 
