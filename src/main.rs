@@ -13,6 +13,7 @@ mod hooks;
 mod init;
 mod migrate;
 mod oh;
+mod prompts;
 mod retro;
 mod setup_oh;
 mod state;
@@ -126,6 +127,27 @@ enum Commands {
         #[arg(long)]
         push_oh: bool,
     },
+
+    /// Manage superego prompts (list, switch, show)
+    Prompt {
+        #[command(subcommand)]
+        action: PromptAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum PromptAction {
+    /// List available prompts
+    List,
+
+    /// Switch to a different prompt
+    Switch {
+        /// Name of the prompt to switch to (code, writing)
+        name: String,
+    },
+
+    /// Show current prompt info
+    Show,
 }
 
 fn main() {
@@ -715,6 +737,94 @@ fn main() {
                 Err(e) => {
                     eprintln!("Retro failed: {}", e);
                     std::process::exit(1);
+                }
+            }
+        }
+        Commands::Prompt { action } => {
+            let superego_dir = Path::new(".superego");
+
+            match action {
+                PromptAction::List => {
+                    let current = prompts::get_current_base(superego_dir);
+
+                    println!("Available prompts:\n");
+                    for pt in prompts::PromptType::all() {
+                        let marker = if current == Some(*pt) { "*" } else { " " };
+                        println!("  {} {} - {}", marker, pt.name(), pt.description());
+                    }
+                    println!("\n* = current");
+                }
+                PromptAction::Switch { name } => {
+                    if !superego_dir.exists() {
+                        eprintln!("No .superego directory found. Run 'sg init' first.");
+                        std::process::exit(1);
+                    }
+
+                    let target = match prompts::PromptType::from_name(&name) {
+                        Some(pt) => pt,
+                        None => {
+                            eprintln!("Unknown prompt: {}", name);
+                            eprintln!("Available: code, writing");
+                            std::process::exit(1);
+                        }
+                    };
+
+                    match prompts::switch(superego_dir, target) {
+                        Ok(result) => {
+                            if result.backed_up {
+                                println!(
+                                    "Backed up customizations to prompt.{}.md.bak",
+                                    result.from.name()
+                                );
+                            }
+
+                            if result.restored_from_backup {
+                                println!(
+                                    "Restored your customizations from prompt.{}.md.bak",
+                                    result.to.name()
+                                );
+                            } else if result.from != result.to {
+                                println!("Installed fresh '{}' prompt", result.to.name());
+                            }
+
+                            println!(
+                                "\nSwitched from '{}' to '{}'",
+                                result.from.name(),
+                                result.to.name()
+                            );
+                        }
+                        Err(e) => {
+                            eprintln!("Failed to switch prompt: {}", e);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                PromptAction::Show => {
+                    if !superego_dir.exists() {
+                        eprintln!("No .superego directory found. Run 'sg init' first.");
+                        std::process::exit(1);
+                    }
+
+                    match prompts::info(superego_dir) {
+                        Ok(info) => {
+                            println!("Current prompt: {}", info.base.name());
+                            println!("Description: {}", info.base.description());
+                            println!(
+                                "Modified: {}",
+                                if info.has_modifications { "yes" } else { "no" }
+                            );
+
+                            if !info.available_backups.is_empty() {
+                                let backup_names: Vec<_> =
+                                    info.available_backups.iter().map(|pt| pt.name()).collect();
+                                println!("Backups available: {}", backup_names.join(", "));
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("Failed to get prompt info: {}", e);
+                            std::process::exit(1);
+                        }
+                    }
                 }
             }
         }
