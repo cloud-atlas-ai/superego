@@ -8,3 +8,4 @@
 # Generated files
 *.html
 .DS_Store
+.claude/
