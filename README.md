@@ -62,6 +62,7 @@ Learn more: [OH MCP Server](https://github.com/cloud-atlas-ai/oh-mcp-server) | [
 | `/superego:init` | Initialize superego for this project (offers binary install if needed) |
 | `/superego:status` | Check if plugin, binary, and project are configured |
 | `/superego:prompt` | Manage prompts: list, switch (code/writing), show current |
+| `/superego:review` | On-demand review of changes (staged, pr, or file) |
 | `/superego:enable` | Enable superego (offers init if not set up) |
 | `/superego:disable` | Temporarily disable for current session |
 | `/superego:remove` | Remove superego from project |
@@ -259,6 +260,9 @@ sg reset             # Remove .superego/ directory
 sg prompt list       # Show available prompts
 sg prompt switch X   # Switch to prompt X (code, writing)
 sg prompt show       # Show current prompt info
+sg review            # Review staged changes (or uncommitted if nothing staged)
+sg review pr         # Review PR diff vs base branch
+sg review <file>     # Review changes in a specific file
 sg evaluate-llm      # Run LLM evaluation (called by hooks)
 sg has-feedback      # Check for pending feedback (exit 0=yes, 1=no)
 sg get-feedback      # Get and clear pending feedback

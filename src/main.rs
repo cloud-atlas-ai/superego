@@ -15,6 +15,7 @@ mod migrate;
 mod oh;
 mod prompts;
 mod retro;
+mod review;
 mod setup_oh;
 mod state;
 mod transcript;
@@ -132,6 +133,12 @@ enum Commands {
     Prompt {
         #[command(subcommand)]
         action: PromptAction,
+    },
+
+    /// Review changes with superego (on-demand evaluation)
+    Review {
+        /// What to review: "staged", "pr", or a file path (default: staged, fallback to uncommitted)
+        target: Option<String>,
     },
 }
 
@@ -825,6 +832,32 @@ fn main() {
                             std::process::exit(1);
                         }
                     }
+                }
+            }
+        }
+        Commands::Review { target } => {
+            let superego_dir = Path::new(".superego");
+
+            if !superego_dir.exists() {
+                eprintln!("No .superego directory found. Run 'sg init' first.");
+                std::process::exit(1);
+            }
+
+            let target = review::ReviewTarget::from_arg(target.as_deref());
+
+            eprintln!("Reviewing...");
+
+            match review::review(superego_dir, target) {
+                Ok(result) => {
+                    println!("\n--- Review: {} ---\n", result.target_description);
+                    println!("{}", result.feedback);
+                }
+                Err(review::ReviewError::NoDiff(msg)) => {
+                    println!("Nothing to review: {}", msg);
+                }
+                Err(e) => {
+                    eprintln!("Review failed: {}", e);
+                    std::process::exit(1);
                 }
             }
         }
