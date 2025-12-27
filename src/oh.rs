@@ -148,6 +148,7 @@ struct GetLogsResponse {
 }
 
 /// Guardrail from GET /api/endeavors/:id/extensions
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 pub struct OhGuardrail {
     pub id: String,
@@ -165,6 +166,7 @@ pub struct OhGuardrail {
 }
 
 /// Metis entry from GET /api/endeavors/:id/extensions
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 pub struct OhMetis {
     pub id: String,
@@ -180,6 +182,7 @@ pub struct OhMetis {
 }
 
 /// Extensions response from GET /api/endeavors/:id/extensions
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 pub struct OhExtensions {
     pub endeavor_id: String,
