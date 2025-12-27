@@ -108,7 +108,9 @@ pub fn run() -> Result<(), String> {
     match verify_api_key(api_url, &api_key) {
         Ok(true) => println!("API key verified successfully!\n"),
         Ok(false) => {
-            return Err("API key verification failed. Please check your key and try again.".to_string());
+            return Err(
+                "API key verification failed. Please check your key and try again.".to_string(),
+            );
         }
         Err(e) => {
             println!("Warning: Could not verify API key: {}", e);

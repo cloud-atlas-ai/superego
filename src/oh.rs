@@ -529,9 +529,21 @@ impl OhIntegration {
                 context.push_str("\n--- ACTIVE GUARDRAILS (enforce these!) ---\n");
 
                 // Group by severity
-                let hard: Vec<_> = ext.guardrails.iter().filter(|g| g.severity == "hard").collect();
-                let soft: Vec<_> = ext.guardrails.iter().filter(|g| g.severity == "soft").collect();
-                let advisory: Vec<_> = ext.guardrails.iter().filter(|g| g.severity == "advisory").collect();
+                let hard: Vec<_> = ext
+                    .guardrails
+                    .iter()
+                    .filter(|g| g.severity == "hard")
+                    .collect();
+                let soft: Vec<_> = ext
+                    .guardrails
+                    .iter()
+                    .filter(|g| g.severity == "soft")
+                    .collect();
+                let advisory: Vec<_> = ext
+                    .guardrails
+                    .iter()
+                    .filter(|g| g.severity == "advisory")
+                    .collect();
 
                 if !hard.is_empty() {
                     context.push_str("\nHARD (BLOCK if violated - no override):\n");
@@ -572,7 +584,10 @@ impl OhIntegration {
                     } else {
                         m.content.clone()
                     };
-                    context.push_str(&format!("{} {}: {}\n", freshness_indicator, m.title, content));
+                    context.push_str(&format!(
+                        "{} {}: {}\n",
+                        freshness_indicator, m.title, content
+                    ));
                 }
                 context.push_str("--- END METIS ---\n");
             }
