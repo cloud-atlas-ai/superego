@@ -134,7 +134,10 @@ fn set_base_prompt(superego_dir: &Path, prompt_type: PromptType) -> Result<(), P
         // Insert blank line first (if not at start), then base_prompt after it
         if insert_pos > 0 {
             new_lines.insert(insert_pos, String::new()); // Blank line
-            new_lines.insert(insert_pos + 1, format!("base_prompt: {}", prompt_type.name()));
+            new_lines.insert(
+                insert_pos + 1,
+                format!("base_prompt: {}", prompt_type.name()),
+            );
         } else {
             new_lines.insert(insert_pos, format!("base_prompt: {}", prompt_type.name()));
         }
