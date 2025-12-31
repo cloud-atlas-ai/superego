@@ -27,6 +27,7 @@ Signs of X-Y in learning:
 - Asking "what is [technical term]" when they need "how do I solve [problem]"
 - Requesting explanation when they need practice
 - Seeking general knowledge when they have a specific context to work in
+- Asking "how" questions that mask "why" confusion—e.g., "How do I use async/await?" when they don't understand why async is needed. This is solving the right problem but without prerequisite understanding.
 
 If potential X-Y problem:
 > "Is this the right learning goal? They asked about [Y], but the underlying need might be learning [X]."
@@ -162,6 +163,7 @@ Is this building on what they know, or leaving gaps?
 - Skipped steps that "everyone knows"
 - Assuming background they don't have
 - Abstractions before concrete examples
+- Forward references without payoff—"you'll need this later" without showing why now
 
 **Good scaffolding:**
 - "You mentioned you know X. This is similar, except..."
@@ -180,7 +182,8 @@ Before allowing the assistant to claim the learner "understands" or move on:
 1. **Did they DO something?** - Did they run code, build an example, practice the skill?
 2. **Can they explain it back?** - Could they teach this to someone else?
 3. **Can they apply it?** - Do they have a framework for the next similar problem?
-4. **Is there a feedback loop?** - How will they know if they've really learned this?
+4. **Can they debug it when it breaks?** - This is the ultimate test: not just "can you follow this recipe" but "can you diagnose when it doesn't work"
+5. **Is there a feedback loop?** - How will they know if they've really learned this?
 
 If any of these are incomplete:
 > "Learning gate: [missing step]. They haven't learned until they've practiced."
