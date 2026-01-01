@@ -169,6 +169,10 @@ pub fn invoke(
     // trigger hooks that call superego again. Hooks check this env var.
     cmd.env("SUPEREGO_DISABLED", "1");
 
+    // AIDEV-NOTE: Prevent wm hooks from firing on sg's evaluation sessions.
+    // Without this, wm compile runs on sg's "Review the following..." prompts.
+    cmd.env("WM_DISABLED", "1");
+
     // AIDEV-NOTE: Must pipe stdout/stderr to capture output, otherwise
     // wait_with_output() returns empty and JSON parsing fails with EOF.
     cmd.stdout(Stdio::piped());
