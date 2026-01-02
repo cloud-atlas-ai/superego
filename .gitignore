@@ -9,3 +9,4 @@
 *.html
 .DS_Store
 .claude/
+.wm/
