@@ -715,17 +715,15 @@ fn main() {
                         eprintln!("No concerns.");
                     }
 
-                    // Trigger wm extract in background if wm is available
-                    let _ = std::process::Command::new("wm")
-                        .args([
-                            "extract",
-                            "--transcript",
-                            session_path.to_str().unwrap_or(""),
-                        ])
-                        .stdin(std::process::Stdio::null())
-                        .stdout(std::process::Stdio::null())
-                        .stderr(std::process::Stdio::null())
-                        .spawn();
+                    // Trigger wm extract in background if wm is available and path is valid
+                    if let Some(path_str) = session_path.to_str() {
+                        let _ = std::process::Command::new("wm")
+                            .args(["extract", "--transcript", path_str])
+                            .stdin(std::process::Stdio::null())
+                            .stdout(std::process::Stdio::null())
+                            .stderr(std::process::Stdio::null())
+                            .spawn();
+                    }
                 }
                 Err(codex_llm::CodexLlmError::RateLimited { resets_in_seconds }) => {
                     let msg = if let Some(secs) = resets_in_seconds {
