@@ -99,22 +99,6 @@ fi
 
 log "Evaluation complete"
 
-# Trigger wm extraction in background (graceful if wm not installed)
-# AIDEV-NOTE: wm extract captures tacit knowledge from the transcript
-# Session-id filtering ensures we only extract from current session
-# Runs in background (&) so hook returns immediately
-if command -v wm &>/dev/null; then
-    if [ -n "$SESSION_ID" ] && [ "$SESSION_ID" != "null" ]; then
-        log "Running: wm extract --session-id $SESSION_ID (background)"
-        wm extract --transcript "$TRANSCRIPT_PATH" --session-id "$SESSION_ID" >>"$PROJECT_DIR/.superego/hook.log" 2>&1 &
-    else
-        log "Running: wm extract (background, no session_id)"
-        wm extract --transcript "$TRANSCRIPT_PATH" >>"$PROJECT_DIR/.superego/hook.log" 2>&1 &
-    fi
-else
-    log "wm not found, skipping extract"
-fi
-
 # Check if there's feedback to deliver (file exists and non-empty)
 # Use atomic move to prevent race conditions with concurrent hooks
 if [ -s "$FEEDBACK_PATH" ]; then
