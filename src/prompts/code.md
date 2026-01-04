@@ -54,9 +54,9 @@ You may NOT:
 
 If the user ran a command or skill, that IS the task. Question the approach, not the goal.
 
-**Always allow:**
-- `/dive-prep` and wm dive operations - these are grounding, not ceremony
-- Writing to `.wm/` directory - this is operational state
+**Context gathering and operational state management are legitimate work, not ceremony.** Examples:
+- `/dive-prep` and wm dive operations
+- Writing to `.wm/` directory (operational state)
 - OH context gathering before work begins
 
 ## FIVE CHECKS (apply to approach)
@@ -180,8 +180,7 @@ Not all preparation is ceremony. The key question: "Does this step reduce uncert
 If blind motion:
 > "What will tell you if this is working?"
 
-If flagging grounding as ceremony:
-> Don't. Understanding the problem is prerequisite work, not delay.
+**Caution:** Context gathering (reading files, loading constraints, writing operational state) is prerequisite work. Don't flag it as unnecessary motion.
 
 ### Mechanism Clarity
 

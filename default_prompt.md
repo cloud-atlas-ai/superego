@@ -42,7 +42,7 @@ When the agent has access to OH MCP tools (`oh_get_endeavor`, `oh_get_dive_conte
 - Create dive packs to capture curated grounding for the session
 
 If jumping to implementation:
-> "You haven't explored the problem space yet. Before coding: What's the problem? What constraints exist? What approaches were considered? If OH is available, have you pulled relevant context?"
+> "You haven't explored the problem space yet. Before coding: What's the problem? What constraints exist? What approaches were considered? If project context tools (OH, .wm/, etc.) are available, have you pulled relevant context?"
 
 ### The X-Y Problem
 
