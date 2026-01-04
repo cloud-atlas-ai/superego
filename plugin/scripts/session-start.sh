@@ -27,7 +27,7 @@ if [ ! -d "$PROJECT_DIR/.superego" ]; then
 {
   "hookSpecificOutput": {
     "hookEventName": "SessionStart",
-    "additionalContext": "SUPEREGO AVAILABLE: The superego plugin is installed but not initialized for this project. Superego is a metacognitive advisor that monitors your work and provides feedback before you finish. To enable it, ask the user if they want to initialize superego. If yes, create a .superego/ directory with: mkdir -p .superego && printf '# Superego Prompt\\n\\nEvaluate the conversation for scope drift, missing error handling, incomplete implementations, or approaches that don\\'t align with project conventions.\\n' > .superego/prompt.md && echo '{}' > .superego/state.json"
+    "additionalContext": "SUPEREGO AVAILABLE: The superego plugin is installed but not initialized for this project. Superego is a metacognitive advisor that provides feedback on your work.\n\nTo enable it, ask the user which mode they prefer:\n- **always** (default): Automatic evaluation at checkpoints (Stop, large changes, ExitPlanMode)\n- **pull**: You decide when to call `sg review` at decision points (less intrusive)\n\nThen run: `sg init` followed by `sg mode <chosen_mode>`"
   }
 }
 EOFINNER
@@ -74,7 +74,7 @@ if [ "$MODE" = "pull" ]; then
 {
   "hookSpecificOutput": {
     "hookEventName": "SessionStart",
-    "additionalContext": "SUPEREGO AVAILABLE (pull mode): This project has superego for metacognitive oversight. Use `sg review` at decision points:\n- Before committing to a plan or approach\n- When choosing between alternatives\n- Before non-trivial implementations\n- When the task feels complex or uncertain\n- Before claiming work is done\n\nSuperego catches strategic mistakes (wrong approach, over-engineering, scope creep). Call it when you need a second opinion, not automatically."
+    "additionalContext": "SUPEREGO AVAILABLE (pull mode): This project has superego for metacognitive oversight. Use `sg review` at decision points:\n- Before committing to a plan or approach\n- When choosing between alternatives\n- Before non-trivial implementations\n- When the task feels complex or uncertain\n- Before claiming work is done\n\nSuperego catches strategic mistakes (wrong approach, over-engineering, scope creep). Call it when you need a second opinion, not automatically.\n\nTo switch to automatic mode: `sg mode always`"
   }
 }
 EOFINNER
@@ -84,7 +84,7 @@ else
 {
   "hookSpecificOutput": {
     "hookEventName": "SessionStart",
-    "additionalContext": "SUPEREGO ACTIVE: This project uses superego, a metacognitive advisor that monitors your work. When you receive SUPEREGO FEEDBACK, critically evaluate it: if you agree, incorporate it into your approach; if you disagree on non-trivial feedback, escalate to the user explaining both perspectives. Superego feedback reflects concerns about your reasoning, approach, or alignment with the user's goals - it deserves serious consideration, not just acknowledgment."
+    "additionalContext": "SUPEREGO ACTIVE: This project uses superego, a metacognitive advisor that monitors your work. When you receive SUPEREGO FEEDBACK, critically evaluate it: if you agree, incorporate it into your approach; if you disagree on non-trivial feedback, escalate to the user explaining both perspectives. Superego feedback reflects concerns about your reasoning, approach, or alignment with the user's goals - it deserves serious consideration, not just acknowledgment.\n\nTo switch to pull mode (you decide when to review): `sg mode pull`"
   }
 }
 EOFINNER
