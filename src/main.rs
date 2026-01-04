@@ -78,17 +78,11 @@ enum Commands {
         session_id: Option<String>,
     },
 
-    /// Check if periodic evaluation is due (for hooks)
-    ///
-    /// Exit codes: 0 = eval needed ("yes"), 1 = not needed ("no")
-    ShouldEval {
-        /// Claude session ID (for per-session state isolation)
-        #[arg(long)]
-        session_id: Option<String>,
-    },
-
     /// Check hooks and auto-update if outdated
     Check,
+
+    /// Output current evaluation mode (always or pull)
+    Mode,
 
     /// Audit decision history with LLM analysis
     Audit {
@@ -366,77 +360,6 @@ fn main() {
                 }
             }
         }
-        Commands::ShouldEval { session_id } => {
-            let superego_dir = Path::new(".superego");
-
-            // Check if superego is initialized
-            if !superego_dir.exists() {
-                println!("no");
-                std::process::exit(1);
-            }
-
-            // Use session-namespaced state dir if session_id provided
-            let state_dir = if let Some(ref sid) = session_id {
-                superego_dir.join("sessions").join(sid)
-            } else {
-                superego_dir.to_path_buf()
-            };
-
-            // Read state to get last_evaluated
-            let state_mgr = state::StateManager::new(&state_dir);
-            let current_state = match state_mgr.load() {
-                Ok(s) => s,
-                Err(_) => {
-                    // Can't read state, assume eval needed
-                    println!("yes");
-                    std::process::exit(0);
-                }
-            };
-
-            // Read config to get eval_interval_minutes (default: 5)
-            let config_path = superego_dir.join("config.yaml");
-            let interval_minutes: i64 = if config_path.exists() {
-                std::fs::read_to_string(&config_path)
-                    .ok()
-                    .and_then(|content| {
-                        // Simple parsing: look for "eval_interval_minutes: N"
-                        for line in content.lines() {
-                            let line = line.trim();
-                            if line.starts_with("eval_interval_minutes:") {
-                                return line
-                                    .strip_prefix("eval_interval_minutes:")
-                                    .and_then(|v| v.trim().parse().ok());
-                            }
-                        }
-                        None
-                    })
-                    .unwrap_or(5)
-            } else {
-                5
-            };
-
-            // Check if eval is due
-            match current_state.last_evaluated {
-                None => {
-                    // Never evaluated, should eval
-                    println!("yes");
-                    std::process::exit(0);
-                }
-                Some(last) => {
-                    let now = chrono::Utc::now();
-                    let elapsed = now.signed_duration_since(last);
-                    let threshold = chrono::Duration::minutes(interval_minutes);
-
-                    if elapsed >= threshold {
-                        println!("yes");
-                        std::process::exit(0);
-                    } else {
-                        println!("no");
-                        std::process::exit(1);
-                    }
-                }
-            }
-        }
         Commands::Check => match hooks::check_and_update_hooks(Path::new(".")) {
             Ok(result) => {
                 if result.updated.is_empty() {
@@ -450,6 +373,11 @@ fn main() {
                 std::process::exit(1);
             }
         },
+        Commands::Mode => {
+            let superego_dir = Path::new(".superego");
+            let cfg = config::Config::load(superego_dir);
+            println!("{}", cfg.mode.as_str());
+        }
         Commands::Audit { json } => {
             let superego_dir = Path::new(".superego");
 

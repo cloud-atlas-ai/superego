@@ -64,8 +64,23 @@ EOFINNER
     exit 0
 fi
 
-# SCENARIO 1: Everything present - inject full superego contract
-cat << 'EOFINNER'
+# SCENARIO 1: Everything present - check mode and inject appropriate context
+MODE=$(sg mode 2>/dev/null || echo "always")
+echo "[$(date '+%H:%M:%S')] [session] Mode: $MODE" >> "$PROJECT_DIR/.superego/hook.log" 2>/dev/null
+
+if [ "$MODE" = "pull" ]; then
+    # Pull mode: Claude decides when to evaluate using `sg review`
+    cat << 'EOFINNER'
+{
+  "hookSpecificOutput": {
+    "hookEventName": "SessionStart",
+    "additionalContext": "SUPEREGO AVAILABLE (pull mode): This project has superego for metacognitive oversight. Use `sg review` at decision points:\n- Before committing to a plan or approach\n- When choosing between alternatives\n- Before non-trivial implementations\n- When the task feels complex or uncertain\n- Before claiming work is done\n\nSuperego catches strategic mistakes (wrong approach, over-engineering, scope creep). Call it when you need a second opinion, not automatically."
+  }
+}
+EOFINNER
+else
+    # Always mode: automatic evaluation at checkpoints
+    cat << 'EOFINNER'
 {
   "hookSpecificOutput": {
     "hookEventName": "SessionStart",
@@ -73,3 +88,4 @@ cat << 'EOFINNER'
   }
 }
 EOFINNER
+fi

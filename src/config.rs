@@ -5,11 +5,38 @@
 use std::fs;
 use std::path::Path;
 
+/// Evaluation mode
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Mode {
+    /// Automatic evaluation at checkpoints (Stop, large changes, ExitPlanMode)
+    #[default]
+    Always,
+    /// Pull-based: Claude decides when to call `sg review`
+    Pull,
+}
+
+impl Mode {
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s.to_lowercase().as_str() {
+            "always" => Some(Mode::Always),
+            "pull" => Some(Mode::Pull),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Mode::Always => "always",
+            Mode::Pull => "pull",
+        }
+    }
+}
+
 /// Superego configuration
 #[derive(Debug, Clone)]
 pub struct Config {
-    /// Minutes between periodic evaluations (default: 5)
-    pub eval_interval_minutes: i64,
+    /// Evaluation mode: "always" (automatic) or "pull" (on-demand)
+    pub mode: Mode,
     /// Number of recent decisions to include in carryover context (default: 2)
     pub carryover_decision_count: usize,
     /// Minutes of recent messages to include in carryover context (default: 5)
@@ -19,7 +46,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Config {
-            eval_interval_minutes: 5,
+            mode: Mode::Always,
             carryover_decision_count: 2,
             carryover_window_minutes: 5,
         }
@@ -54,9 +81,9 @@ impl Config {
                 let value = value.trim();
 
                 match key {
-                    "eval_interval_minutes" => {
-                        if let Ok(v) = value.parse() {
-                            config.eval_interval_minutes = v;
+                    "mode" => {
+                        if let Some(m) = Mode::from_str(value) {
+                            config.mode = m;
                         }
                     }
                     "carryover_decision_count" => {
@@ -86,7 +113,7 @@ mod tests {
     #[test]
     fn test_default_config() {
         let config = Config::default();
-        assert_eq!(config.eval_interval_minutes, 5);
+        assert_eq!(config.mode, Mode::Always);
         assert_eq!(config.carryover_decision_count, 2);
         assert_eq!(config.carryover_window_minutes, 5);
     }
@@ -95,7 +122,7 @@ mod tests {
     fn test_load_missing_file() {
         let dir = tempdir().unwrap();
         let config = Config::load(dir.path());
-        assert_eq!(config.eval_interval_minutes, 5);
+        assert_eq!(config.mode, Mode::Always);
     }
 
     #[test]
@@ -105,9 +132,9 @@ mod tests {
         fs::write(&config_path, "carryover_decision_count: 5\n").unwrap();
 
         let config = Config::load(dir.path());
+        assert_eq!(config.mode, Mode::Always); // default
         assert_eq!(config.carryover_decision_count, 5);
         assert_eq!(config.carryover_window_minutes, 5); // default
-        assert_eq!(config.eval_interval_minutes, 5); // default
     }
 
     #[test]
@@ -116,13 +143,33 @@ mod tests {
         let config_path = dir.path().join("config.yaml");
         fs::write(
             &config_path,
-            "eval_interval_minutes: 10\ncarryover_decision_count: 3\ncarryover_window_minutes: 7\n",
+            "mode: always\ncarryover_decision_count: 3\ncarryover_window_minutes: 7\n",
         )
         .unwrap();
 
         let config = Config::load(dir.path());
-        assert_eq!(config.eval_interval_minutes, 10);
+        assert_eq!(config.mode, Mode::Always);
         assert_eq!(config.carryover_decision_count, 3);
         assert_eq!(config.carryover_window_minutes, 7);
+    }
+
+    #[test]
+    fn test_mode_parsing() {
+        assert_eq!(Mode::from_str("always"), Some(Mode::Always));
+        assert_eq!(Mode::from_str("Always"), Some(Mode::Always));
+        assert_eq!(Mode::from_str("ALWAYS"), Some(Mode::Always));
+        assert_eq!(Mode::from_str("pull"), Some(Mode::Pull));
+        assert_eq!(Mode::from_str("Pull"), Some(Mode::Pull));
+        assert_eq!(Mode::from_str("invalid"), None);
+    }
+
+    #[test]
+    fn test_load_pull_mode() {
+        let dir = tempdir().unwrap();
+        let config_path = dir.path().join("config.yaml");
+        fs::write(&config_path, "mode: pull\n").unwrap();
+
+        let config = Config::load(dir.path());
+        assert_eq!(config.mode, Mode::Pull);
     }
 }

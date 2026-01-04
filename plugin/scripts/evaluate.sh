@@ -1,6 +1,6 @@
 #!/bin/bash
 # Superego evaluation hook
-# Used by: Stop (after response), PreCompact (before context truncation)
+# Used by: Stop (after response), ExitPlanMode permission request
 #
 # AIDEV-NOTE: For Stop hooks, if concerns found and not already blocked once,
 # returns {"decision":"block","reason":"..."} so Claude sees feedback and continues.
@@ -31,6 +31,13 @@ fi
 # Check if superego is initialized
 if [ ! -d "$PROJECT_DIR/.superego" ]; then
     exit 0  # No log - .superego doesn't exist
+fi
+
+# Skip if in pull mode (user calls sg review manually)
+MODE=$(sg mode 2>/dev/null || echo "always")
+if [ "$MODE" = "pull" ]; then
+    log "SKIP: pull mode (use sg review manually)"
+    exit 0
 fi
 
 log "Hook fired"
