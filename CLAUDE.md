@@ -21,9 +21,20 @@ cargo run -- <args>      # Run with args (e.g., cargo run -- init)
 ## Architecture
 
 ### Core Flow
+
+Superego supports two evaluation modes configured in `.superego/config.yaml`:
+
+**`always` mode (default):**
 1. **SessionStart hook** → Injects superego contract into Claude's context
 2. **PreToolUse hook** → Evaluates large Edit/Write operations (≥20 lines by default)
-3. **Stop/PreCompact hooks** → Runs LLM evaluation before Claude finishes
+3. **Stop hook** → Runs LLM evaluation before Claude finishes
+4. **ExitPlanMode hook** → Evaluates before committing to a plan
+
+**`pull` mode (Codex-style):**
+1. **SessionStart hook** → Injects guidance on when to self-evaluate
+2. **No automatic triggers** → Claude calls `sg review` at decision points
+
+Pull mode trusts the LLM to recognize decision points (before committing to plans, when choosing alternatives, before non-trivial work). This matches the Codex skill's approach.
 
 ### Module Structure
 
@@ -109,13 +120,20 @@ Minimal dependency set (no regex, no async runtime):
 .superego/
 ├── prompt.md          # Customizable system prompt for evaluation
 ├── state.json         # Evaluation state (last_evaluated timestamp)
-├── config.yaml        # Configuration (eval interval, model, etc.)
+├── config.yaml        # Configuration (mode, model, etc.)
 ├── sessions/          # Per-session state and decisions
 │   └── <session-id>/
 │       ├── state.json
 │       ├── decisions/  # Decision journal (audit trail) - JSON files
 │       └── superego_session
 └── feedback           # Pending feedback queue (transient)
+```
+
+**Config options:**
+```yaml
+mode: always           # "always" (automatic) or "pull" (on-demand)
+# model: opus          # Override evaluation model
+# timeout_ms: 30000    # Override timeout
 ```
 
 Note: Hook configuration is now provided by the Claude Code plugin (`/plugin install superego`).
@@ -125,12 +143,13 @@ The plugin's hooks use `${CLAUDE_PROJECT_DIR}` to find the project's `.superego/
 
 - `sg init` - Initialize superego for a project
 - `sg migrate` - Remove legacy hooks (for users upgrading from < v0.4.0)
+- `sg mode` - Output current evaluation mode (always or pull)
+- `sg review` - On-demand evaluation (advisory, non-blocking)
 - `sg audit` - Analyze decision history with LLM (patterns, timeline, insights)
 - `sg audit --json` - JSON output for programmatic use
 - `sg history --limit N` - Show recent decisions
 - `sg check` - Verify hooks are up to date
 - `sg reset` - Remove superego configuration
-- `sg should-eval` - Check if periodic eval is due (exit 0 = yes, exit 1 = no)
 
 ## Decision Journal
 

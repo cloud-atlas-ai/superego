@@ -2,12 +2,10 @@
 # PreToolUse hook for superego
 #
 # TRIGGERS EVALUATION ON:
-# 1. LARGE EDIT/WRITE - Edit/Write >= threshold lines
-# 2. INTERVAL - Any tool, if eval_interval_minutes passed (sg should-eval)
+# - LARGE EDIT/WRITE - Edit/Write >= threshold lines (default: 20)
 #
-# Uses PreToolUse as a convenient tick for periodic drift detection.
-#
-# NOTE: No `set -e` because sg should-eval uses exit codes (0=yes, 1=no)
+# This hook only fires on significant code changes, not arbitrary intervals.
+# For pull-based evaluation, use `sg review` at decision points instead.
 
 # Check for sg binary
 if ! command -v sg &> /dev/null; then
@@ -55,6 +53,12 @@ LOCK_FILE="$SESSION_DIR/eval.lock"
 
 # Skip if no transcript
 if [ -z "$TRANSCRIPT_PATH" ] || [ "$TRANSCRIPT_PATH" = "null" ]; then
+    exit 0
+fi
+
+# Skip if in pull mode (user calls sg review manually)
+MODE=$(sg mode 2>/dev/null || echo "always")
+if [ "$MODE" = "pull" ]; then
     exit 0
 fi
 
@@ -153,7 +157,7 @@ $content"
 }
 
 # ===========================================================================
-# TRIGGER 1: LARGE EDIT/WRITE (size >= threshold)
+# LARGE EDIT/WRITE CHECK (size >= threshold)
 # ===========================================================================
 if [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "Write" ]; then
     # Calculate change size
@@ -176,29 +180,6 @@ if [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "Write" ]; then
 fi
 
 # ===========================================================================
-# TRIGGER 2: INTERVAL CHECK (any tool, periodic drift detection)
-# ===========================================================================
-# sg should-eval exits 0 if eval needed, 1 if not
-INTERVAL_TRIGGERED=false
-if [ -n "$SESSION_ID" ]; then
-    sg should-eval --session-id "$SESSION_ID" >/dev/null 2>&1 && INTERVAL_TRIGGERED=true
-else
-    sg should-eval >/dev/null 2>&1 && INTERVAL_TRIGGERED=true
-fi
-
-if [ "$INTERVAL_TRIGGERED" = true ]; then
-    log "Interval eval triggered on $TOOL_NAME"
-
-    # Include pending change context if this is an Edit/Write
-    if [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "Write" ]; then
-        build_pending_change > "$PENDING_CHANGE_PATH"
-    fi
-
-    run_eval "interval on $TOOL_NAME"
-    # run_eval exits, won't reach here
-fi
-
-# ===========================================================================
-# NEITHER TRIGGERED - ALLOW
+# NOT A LARGE CHANGE - ALLOW
 # ===========================================================================
 exit 0

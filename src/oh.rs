@@ -640,7 +640,7 @@ mod tests {
 
     #[test]
     fn test_parse_config_extracts_endeavor_id() {
-        let content = "# Config\neval_interval_minutes: 5\noh_endeavor_id: my-endeavor-123\n";
+        let content = "# Config\nmode: always\noh_endeavor_id: my-endeavor-123\n";
         let result = parse_config_for_endeavor_id(content);
         assert_eq!(result, Some("my-endeavor-123".to_string()));
     }
@@ -661,7 +661,7 @@ mod tests {
 
     #[test]
     fn test_parse_config_returns_none_when_missing() {
-        let content = "eval_interval_minutes: 5\nmodel: opus";
+        let content = "mode: always\nmodel: opus";
         let result = parse_config_for_endeavor_id(content);
         assert!(result.is_none());
     }

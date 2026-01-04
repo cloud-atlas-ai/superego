@@ -272,11 +272,7 @@ mod tests {
         let superego = dir.path().join(".superego");
         fs::create_dir_all(&superego).unwrap();
         fs::write(superego.join("prompt.md"), PromptType::Code.content()).unwrap();
-        fs::write(
-            superego.join("config.yaml"),
-            "# Config\neval_interval_minutes: 5\n",
-        )
-        .unwrap();
+        fs::write(superego.join("config.yaml"), "# Config\nmode: always\n").unwrap();
         dir
     }
 

@@ -72,8 +72,10 @@ pub fn init_at(base_dir: &Path, force: bool) -> Result<(), InitError> {
         superego_dir.join("config.yaml"),
         r#"# Superego configuration
 
-# Periodic evaluation interval (minutes)
-eval_interval_minutes: 5
+# Evaluation mode:
+#   always - Automatic evaluation at checkpoints (Stop, large changes, ExitPlanMode)
+#   pull   - Claude decides when to call `sg review` (Codex-style)
+mode: always
 
 # Carryover context settings (for continuity between evaluations)
 # carryover_decision_count: 2    # Number of recent decisions to include
